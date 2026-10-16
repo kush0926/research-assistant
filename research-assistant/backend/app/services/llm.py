@@ -1,4 +1,4 @@
-"""Provider-agnostic LLM adapter (Part 19). Anthropic / OpenAI-compatible / Gemini, or `none` for offline heuristics.
+"""Provider-agnostic LLM adapter. Anthropic / OpenAI-compatible / Groq / Gemini, or `none`.
 
 All callers use `llm.available` to choose between an LLM path and a deterministic fallback, so the whole system
 runs end-to-end without any API key (extractive mode) and gets better when a key is configured.
@@ -10,7 +10,8 @@ import httpx
 
 from ..config import settings
 
-_DEFAULT_MODELS = {"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o-mini", "gemini": "gemini-2.0-flash"}
+_DEFAULT_MODELS = {"anthropic": "claude-sonnet-5", "openai": "gpt-4o-mini",
+                   "groq": "openai/gpt-oss-20b", "gemini": "gemini-3.8-flash"}
 
 
 class LLMClient:
@@ -21,7 +22,7 @@ class LLMClient:
     @property
     def available(self) -> bool:
         key = {"anthropic": settings.ANTHROPIC_API_KEY, "openai": settings.OPENAI_API_KEY,
-               "gemini": settings.GEMINI_API_KEY}.get(self.provider)
+               "groq": settings.GROQ_API_KEY, "gemini": settings.GEMINI_API_KEY}.get(self.provider)
         return bool(key)
 
     def complete(self, system: str, user: str, max_tokens: int = 1200, temperature: float = 0.0) -> str:
@@ -31,24 +32,37 @@ class LLMClient:
             if self.provider == "anthropic":
                 r = c.post("https://api.anthropic.com/v1/messages",
                            headers={"x-api-key": settings.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                           json={"model": self.model, "max_tokens": max_tokens, "temperature": temperature,
+                           json={"model": self.model, "max_tokens": max_tokens,
                                  "system": system, "messages": [{"role": "user", "content": user}]})
                 r.raise_for_status()
                 return "".join(b.get("text", "") for b in r.json()["content"])
-            if self.provider == "openai":
-                r = c.post(f"{settings.OPENAI_BASE_URL}/chat/completions",
-                           headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
-                           json={"model": self.model, "max_tokens": max_tokens, "temperature": temperature,
-                                 "messages": [{"role": "system", "content": system},
-                                              {"role": "user", "content": user}]})
+            if self.provider in ("openai", "groq"):
+                is_groq = self.provider == "groq"
+                base_url = settings.GROQ_BASE_URL if is_groq else settings.OPENAI_BASE_URL
+                key = settings.GROQ_API_KEY if is_groq else settings.OPENAI_API_KEY
+                payload = {"model": self.model, "temperature": temperature,
+                           "messages": [{"role": "system", "content": system},
+                                        {"role": "user", "content": user}]}
+                payload["max_completion_tokens" if is_groq else "max_tokens"] = max_tokens
+                if is_groq and self.model.startswith("openai/gpt-oss-"):
+                    # Groq counts reasoning and visible output in the same limit.
+                    # Preserve the callers' answer budget with bounded reasoning headroom.
+                    payload["max_completion_tokens"] += 1024
+                    payload.update(reasoning_effort="low", include_reasoning=False)
+                r = c.post(f"{base_url.rstrip('/')}/chat/completions",
+                           headers={"Authorization": f"Bearer {key}"}, json=payload)
                 r.raise_for_status()
-                return r.json()["choices"][0]["message"]["content"]
+                choice = r.json()["choices"][0]
+                content = choice["message"].get("content")
+                if choice.get("finish_reason") == "length" or not isinstance(content, str) or not content.strip():
+                    raise RuntimeError("LLM returned an empty or truncated completion")
+                return content
             if self.provider == "gemini":
                 r = c.post(f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
                            params={"key": settings.GEMINI_API_KEY},
                            json={"systemInstruction": {"parts": [{"text": system}]},
                                  "contents": [{"role": "user", "parts": [{"text": user}]}],
-                                 "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature}})
+                                 "generationConfig": {"maxOutputTokens": max_tokens}})
                 r.raise_for_status()
                 return "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"]["parts"])
         raise RuntimeError(f"Unknown provider {self.provider}")
@@ -68,3 +82,11 @@ class LLMClient:
 
 
 llm = LLMClient()
+
+
+def get_verifier() -> LLMClient:
+    """Use the configured verifier model with the same explicitly selected provider/key."""
+    client = LLMClient()
+    client.provider = llm.provider
+    client.model = settings.LLM_VERIFIER_MODEL or llm.model
+    return client

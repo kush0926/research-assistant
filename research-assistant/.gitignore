@@ -1,6 +1,11 @@
 node_modules/
 .next/
+*.tsbuildinfo
+.venv/
 __pycache__/
 backend/data_store/
 .env
 sample_papers/
+
+backend/eval/results/
+design/*.log

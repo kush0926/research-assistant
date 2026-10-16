@@ -4,7 +4,7 @@
     "Random Forest": {"syn": ["random forest", "random forests"], "category": "classical", "public": true},
     "k-NN": {"syn": ["k-nn", "knn", "k-nearest neighbor", "k-nearest neighbors"], "category": "classical", "public": true},
     "Logistic Regression": {"syn": ["logistic regression"], "category": "classical", "public": true},
-    "XGBoost": {"syn": ["xgboost", "gradient boosting"], "category": "classical", "public": true},
+    "XGBoost": {"syn": ["xgboost", "xg-boost", "gradient boosting"], "category": "classical", "public": true},
     "GMM": {"syn": ["gmm", "gaussian mixture model", "gaussian mixture models"], "category": "classical", "public": true},
     "MLP": {"syn": ["mlp", "multilayer perceptron", "multi-layer perceptron", "feedforward neural network"], "category": "deep", "public": true},
     "CNN": {"syn": ["cnn", "cnns", "convolutional neural network", "convolutional neural networks", "convnet", "convnets"], "category": "deep", "public": true},
@@ -28,11 +28,15 @@
     "Data Augmentation": {"syn": ["data augmentation", "specaugment"], "category": "technique", "public": true},
     "Reinforcement Learning": {"syn": ["reinforcement learning"], "category": "deep", "public": true},
     "Retrieval-Augmented Generation": {"syn": ["rag", "retrieval-augmented generation"], "category": "llm", "public": true},
-    "LLM": {"syn": ["large language model", "large language models", "llm", "llms", "gpt-4", "gpt-3"], "category": "llm", "public": true}
+    "LLM": {"syn": ["large language model", "large language models", "llm", "llms", "gpt-4", "gpt-3"], "category": "llm", "public": true},
+    "LightGBM": {"syn": ["lightgbm", "light gbm"], "category": "classical", "public": true, "source_url": "https://github.com/lightgbm-org/LightGBM"},
+    "WavLM": {"syn": ["wavlm", "wavlm base", "wavlm large"], "category": "transformer", "public": true, "source_url": "https://github.com/microsoft/unilm/tree/master/wavlm"},
+    "PASE": {"syn": ["pase", "problem agnostic speech encoder", "problem-agnostic speech encoder"], "category": "deep", "public": true, "source_url": "https://github.com/santi-pdp/pase"},
+    "OpenL3": {"syn": ["openl3", "open l3"], "category": "deep", "public": true, "source_url": "https://github.com/marl/openl3"}
   },
   "datasets": {
     "PC-GITA": {"syn": ["pc-gita", "pcgita", "pc gita"], "public": true},
-    "Italian Parkinson's Voice and Speech": {"syn": ["italian parkinson's voice and speech", "italian parkinson voice", "italian pvs"], "public": true},
+    "Italian Parkinson's Voice and Speech": {"syn": ["italian parkinson's voice and speech", "italian parkinson voice", "italian pvs", "italianpvs", "italian-pvs"], "public": true},
     "UCI Parkinson's": {"syn": ["uci parkinson", "uci parkinsons", "uci parkinson's", "oxford parkinson's disease detection dataset"], "public": true},
     "mPower": {"syn": ["mpower"], "public": true},
     "Mobile Device Voice Recordings at King's College London": {"syn": ["mdvr-kcl", "mdvr kcl", "king's college london dataset"], "public": true},

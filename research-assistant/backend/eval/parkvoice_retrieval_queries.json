@@ -1,0 +1,30 @@
+[
+  {
+    "q": "cross-lingual Parkinson speech severity embeddings",
+    "relevant_files": [
+      "arxiv_2609_20875v1.pdf",
+      "arxiv_2609_09499v1.pdf"
+    ]
+  },
+  {
+    "q": "early-stage Parkinson diagnosis speech benchmark",
+    "relevant_files": [
+      "arxiv_2605_14066v2.pdf",
+      "arxiv_2106_00531v2.pdf",
+      "arxiv_2504_17739v1.pdf"
+    ]
+  },
+  {
+    "q": "speech enhancement foundation models Parkinson detection",
+    "relevant_files": [
+      "arxiv_2406_16128v1.pdf"
+    ]
+  },
+  {
+    "q": "clinical speech task human expert machine Parkinson detection",
+    "relevant_files": [
+      "arxiv_2510_07299v1.pdf",
+      "arxiv_2009_01231v4.pdf"
+    ]
+  }
+]

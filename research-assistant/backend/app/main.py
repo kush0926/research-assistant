@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -112,9 +113,17 @@ def me(user: User = Depends(current_user)):
 @app.post("/papers/upload")
 async def upload_paper(background: BackgroundTasks, file: UploadFile = File(...),
                        user: User = Depends(current_user), db: Session = Depends(get_db)):
-    data = await file.read()
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+    data = bytearray()
+    while len(data) <= max_bytes:
+        chunk = await file.read(min(1024 * 1024, max_bytes + 1 - len(data)))
+        if not chunk:
+            break
+        data.extend(chunk)
+    if len(data) > max_bytes:
+        raise HTTPException(400, f"File too large (max {settings.MAX_UPLOAD_MB} MB)")
     try:
-        validate_pdf_bytes(data, file.content_type)
+        validate_pdf_bytes(bytes(data), file.content_type)
     except PDFError as e:
         raise HTTPException(400, str(e))
     name = safe_filename(file.filename)
@@ -130,12 +139,21 @@ async def upload_paper(background: BackgroundTasks, file: UploadFile = File(...)
 
 
 @app.get("/papers/search")
-def search_papers(q: str = Query(min_length=2), source: str = "semanticscholar", limit: int = Query(10, le=30),
+def search_papers(q: str = Query(min_length=2, max_length=300), source: str = "semanticscholar",
+                  limit: int = Query(10, ge=1, le=30),
                   user: User = Depends(current_user)):
     try:
         return {"results": paper_search.search(q, source, limit)}
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            headers = {}
+            retry_after = e.response.headers.get("Retry-After")
+            if retry_after:
+                headers["Retry-After"] = retry_after
+            raise HTTPException(503, f"{source} is rate-limiting requests; retry later", headers=headers)
+        raise HTTPException(502, f"{source} search failed with upstream status {e.response.status_code}")
     except Exception as e:
         raise HTTPException(502, f"{source} search failed: {e}")
 

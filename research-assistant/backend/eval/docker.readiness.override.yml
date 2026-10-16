@@ -1,0 +1,25 @@
+# Publish PostgreSQL on a random localhost port for the host-side integration runner.
+# docker compose -f docker-compose.yml -f backend/eval/docker.readiness.override.yml --profile grobid up -d db grobid
+# docker compose -f docker-compose.yml -f backend/eval/docker.readiness.override.yml port db 5432
+services:
+  db:
+    ports: ["127.0.0.1::5432"]
+  backend:
+    ports: !override ["127.0.0.1:8001:8000"]
+    environment:
+      DATABASE_URL: postgresql://ra:ra@db:5432/ra_readiness_test
+      GROBID_URL: http://grobid:8070
+      EMBEDDING_BACKEND: hash
+      RERANKER_BACKEND: lexical
+      VECTOR_BACKEND: chroma
+      LLM_PROVIDER: none
+      WARMUP: "false"
+      ENABLE_METADATA_LOOKUP: "false"
+      CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+    volumes: [readiness_appdata:/data]
+  frontend:
+    ports: !override ["127.0.0.1:3001:3000"]
+    build:
+      args: { NEXT_PUBLIC_API_URL: http://localhost:8001 }
+volumes:
+  readiness_appdata: {}

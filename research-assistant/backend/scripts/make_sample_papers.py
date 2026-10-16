@@ -3,7 +3,7 @@
 These documents are NOT real publications and their numbers are invented. They exist only so the full pipeline
 (ingest -> RAG -> compare -> gap detection) can be demonstrated offline. A gap is deliberately planted:
 Transformer-family models are never evaluated on PC-GITA, though PC-GITA is common and transformers are used
-elsewhere; three papers independently mention it as future work. For your real evaluation, replace these with
+elsewhere; one paper explicitly proposes that pair and two provide broader future-work context. For your real evaluation, replace these with
 15-25 real papers (see eval/README).
 """
 import json
@@ -97,10 +97,12 @@ if __name__ == "__main__":
     for i, row in enumerate(P, 1):
         write_pdf(OUT / f"paper_{i:02d}.pdf", *row)
     (OUT / "gold_gaps.json").write_text(json.dumps([
-        {"method": "Transformer", "dataset": "PC-GITA", "note": "planted: transformers never evaluated on PC-GITA; 3 papers flag it"},
+        {"problem": "Parkinson's disease detection", "method": "Transformer", "dataset": "PC-GITA",
+         "note": "planted: transformers never evaluated on PC-GITA; one explicit proposal plus two broader future-work contexts"},
     ], indent=2))
     (OUT / "ie_gold.json").write_text(json.dumps(
         [{"title": r[0], "methods": [r[3]], "datasets": [r[4]]} for r in P], indent=1))
     (OUT / "retrieval_queries.json").write_text(json.dumps(
-        [{"q": f"Which study evaluates {r[3]} on the {r[4]} dataset?", "relevant_titles": [r[0]]} for r in P], indent=1))
+        [{"q": f"Which study evaluates {r[3]} on the {r[4]} dataset?",
+          "relevant_files": [f"paper_{i:02d}.pdf"]} for i, r in enumerate(P, 1)], indent=1))
     print(f"wrote {len(P)} PDFs to {OUT}")

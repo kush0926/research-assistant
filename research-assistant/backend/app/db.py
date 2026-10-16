@@ -1,14 +1,20 @@
 """PostgreSQL / SQLite schema — mirrors Part 21 of the blueprint (+ problems tables for the gap matrix)."""
 from datetime import datetime
 
-from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text,
-                        create_engine)
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event)
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 from .config import settings
 
 _args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(settings.DATABASE_URL, connect_args=_args, pool_pre_ping=True)
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
 

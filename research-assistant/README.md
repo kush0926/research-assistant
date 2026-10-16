@@ -16,7 +16,7 @@ docker compose up --build   # UI http://localhost:3000   API docs http://localho
 ```bash
 cd backend
 pip install -r requirements.txt          # full stack (BGE, bge-reranker, Chroma). Use requirements-lite.txt for a tiny install
-uvicorn app.main:app --reload            # SQLite by default
+uvicorn app.main:app --reload --env-file ../.env  # SQLite by default
 cd ../frontend && npm install && npm run dev   # http://localhost:3000
 ```
 Try it immediately with the bundled synthetic corpus: `python backend/scripts/make_sample_papers.py sample_papers`, then upload those PDFs.
@@ -28,7 +28,7 @@ Try it immediately with the bundled synthetic corpus: `python backend/scripts/ma
 | Reranker | `bge-reranker-base` cross-encoder | lexical BM25-style |
 | Vector DB | Chroma (persistent, metadata filter) | numpy store |
 | PDF parser | GROBID (if `GROBID_URL`) | PyMuPDF in a sandboxed subprocess |
-| LLM (Anthropic / OpenAI-compatible / Gemini) | structured extraction, grounded answers, narratives | rule/dictionary extraction, extractive cited answers |
+| LLM (Anthropic / OpenAI-compatible / Groq / Gemini) | structured extraction, grounded answers, narratives | rule/dictionary extraction, extractive cited answers |
 Check what is active: `GET /health`. **For your demo and report use the full mode** (BGE + reranker + an LLM key); the fallbacks exist so nothing breaks, and their quality is lower.
 
 ## Blueprint → code map
@@ -50,17 +50,25 @@ A candidate is a (problem, dataset, method) cell that is empty (or "explored ear
 `GapScore = Σ wᵢ·componentᵢ` over novelty, sparsity, importance, feasibility, temporal, evidence, opportunity, contradiction (Part 15).
 Weights are hand-set, equal by default, normalised, and editable in the UI; they are **not learned**. A candidate with no textual evidence and no
 contradiction is kept but multiplied by `SPARSITY_ONLY_PENALTY` (0.75) and labelled "under-explored" (lower confidence). Contradictions only count
-when they share the candidate's dataset or method. Every gap links to the exact source sentences.
+when dataset and method match, with compatible problem labels. Every gap links to the exact source sentences.
 
-## Evaluation
-```bash
-python backend/eval/run_eval.py --corpus <pdf_dir> --gold gold_gaps.json --ie-gold ie_gold.json --queries retrieval_queries.json
-```
-Reports gap P/R/F1@K + MRR for sparsity-only vs evidence-only vs hybrid; retrieval Recall/MRR/NDCG for TF-IDF vs embedding vs embedding+rerank; IE P/R/F1.
+## Verification status — 2026-10-14
 
-## Honest status — read before your viva
-- **Verified here:** 8 end-to-end tests pass (auth, upload validation, ingestion, extraction, cited RAG + refusal, comparison, gap detection, graph, recommendations, review, agent, per-user isolation) on both the numpy and the real Chroma store; live-server async ingestion; frontend type-checks and builds.
-- **Not exercised in my environment (no network/GPU/keys):** BGE embeddings, the bge cross-encoder, GROBID, the three LLM providers, PostgreSQL via Docker, external paper-search APIs, and the UI in a browser. The code paths are written to spec but **run them once and fix any environment-specific issue before the demo**.
-- **The bundled sample corpus is synthetic** (clearly stamped on each PDF) with one *planted* gap. Results on it only prove the harness works. **Do not report them as findings.** Build the real 15–25 paper benchmark with manually derived gaps (blueprint Part 4-G).
-- The domain dictionary covers voice/Parkinson's plus common ML terms; extend `data/domain_dict.json` for your domain. Entity normalisation and extraction accuracy bound gap quality, so measure IE first.
-- Scanned PDFs (OCR), paywalled full-text, and learned scoring weights are out of scope, as in the blueprint.
+The user requested automated LLM verification instead of manual review. Groq GPT-OSS 20B generates outputs and GPT-OSS 120B checks source support. Assessments are labeled automated; they are not human gold or independently measured research accuracy.
+
+- **122 backend tests pass with NumPy and 122 with Chroma.** Coverage includes ownership, PDF limits, citation repair, source sentence verification, withheld unsupported claims, grounded entities, result semantics, gap evidence scope, and comparison source links.
+- **100 distinct real PDFs passed the PostgreSQL/GROBID/BGE/Chroma workflow**, including extraction, cited questions, comparison, graph, recommendations, gaps, and retrieval after a new process. They produced 3,364 chunks. Mean ingestion was 19.05s; timings include CPU/model-startup variation.
+- **1,000 representative paper records / 33,640 chunks passed a separate volume check and fresh-process retrieval.** This uses the 100 real papers plus 900 explicitly tagged replicas with reused embeddings. It does not establish quality or ingestion performance for 1,000 distinct PDFs. Replicas were removed after verification.
+- **The isolated Docker test interface uses full models:** Groq, BGE embeddings, BGE cross-encoder, Chroma, PostgreSQL, and GROBID. UI: [localhost:3001](http://localhost:3001); API docs: [localhost:8001/docs](http://localhost:8001/docs). The full Groq overlay uses a separate database and vector volume to avoid mixing hashing and BGE dimensions.
+- **Generated Q&A is checked against original numbered source sentences.** Claims without accepted support are withheld; if needed the answer uses cited source excerpts. A source link and an LLM verdict remain automated evidence, not a guarantee of correctness.
+- **Extraction and gap errors found in real papers were corrected:** generic dataset names, unquoted LLM entities, features shown as models, relative percentages interpreted as absolute results, ambiguous result attribution, and broadly related text promoting specific gap combinations. Comparison cells expose every supporting passage. Comparison and review prose now also require a separate LLM check against their structured inputs; a failed check returns the factual template summary.
+- **Automated assessment is recorded in `backend/eval/results/`.** The original 20-paper assessment exposed low dictionary/reference agreement and citation issues. Current synthesis assessment measures fidelity to the exact supplied structured facts; source-scoped entity reference agreement is not full-paper accuracy.
+- **Retrieval benefit remains unproven:** on the four-query pilot, embedding-only and reranked retrieval had identical final parser scores (Precision@5 .300, Recall@5 .792, MRR 1.000, NDCG@5 .845). A four-query sample cannot establish general quality.
+
+### Reproduce and inspect
+
+See [evaluation guide](backend/eval/README.md) and [blueprint traceability](backend/eval/BLUEPRINT_TRACEABILITY.md) for commands, report paths, and limitations. The original 20-paper corpus is pinned by `backend/eval/parkvoice_manifest.json`; the 100-paper downloader records source identifiers and hashes in its manifest.
+
+### Deferred scope
+
+Frontend visual redesign and a dedicated temporal-trend chart remain later work, as requested. Backend trend data is available. OCR for scanned PDFs, paywalled full text, and learned gap-score weights remain outside the blueprint scope. Semantic Scholar may return upstream rate limits, and Groq free-plan quotas can delay or force fallback generation.

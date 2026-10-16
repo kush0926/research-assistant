@@ -66,6 +66,30 @@ def _greedy_clusters(vecs: np.ndarray, thr: float) -> list[list[int]]:
     return clusters
 
 
+def _related_contradictions(problem: str, dataset: str, method: str, contradictions: list[dict],
+                            paper_problems: dict[int, set[str]]) -> list[dict]:
+    """Return conflicts on the same dataset/method and the candidate's problem scope."""
+    related = []
+    for ct in contradictions:
+        if ct.get("dataset") != dataset or ct.get("method") != method:
+            continue
+        problem_sets = [paper_problems.get(pair["paper_id"], set()) for pair in ct.get("papers", [])]
+        # If labels exist, every labeled source paper must include this problem. Unknown labels remain usable.
+        if any(problem_sets) and not all(not labels or problem in labels for labels in problem_sets):
+            continue
+        related.append(ct)
+    return related
+
+
+def _matches_candidate_evidence(problem: str, dataset: str, method: str, item: dict, similarity: float,
+                                threshold: float, paper_problems: dict[int, set[str]]) -> bool:
+    """Keep limitation evidence within the candidate's problem scope when labels are available."""
+    known_problems = item["p"] or paper_problems.get(item["paper_id"], set())
+    if known_problems and problem not in known_problems:
+        return False
+    return dataset in item["d"] or method in item["m"] or similarity >= threshold
+
+
 def select_corpus(db: Session, user_id: int, paper_ids=None, topic=None) -> list[Paper]:
     q = db.query(Paper).filter(Paper.upload_user_id == user_id, Paper.status == "ready")
     if paper_ids:
@@ -137,11 +161,9 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
                                  "p": set(find_entities(it["text"], "problems"))})
     ev_vecs = emb.encode([e["text"] for e in ev_items]) if ev_items else np.zeros((0, emb.dim))
     contradictions = find_contradictions(db, pid_list)
-    contra_ds = {c["dataset"] for c in contradictions}
-    contra_methods = {c["method"] for c in contradictions if c["method"]}
 
     # ---- 6-7. candidate generation: well-populated neighbours, empty (or abandoned) cell ----
-    well_cells = [t for t, c in T.items() if c >= 1]
+    well_cells = [t for t, c in T.items() if c >= min_nb]
     well_vecs = emb.encode([" | ".join(t) for t in well_cells]) if well_cells else np.zeros((0, emb.dim))
     max_cit = max([p.citation_count or 0 for p in papers] + [1])
     prob_stats = {}
@@ -168,17 +190,23 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
         pd_clusters = {cluster_of[i] for i in pd_papers.get((p, d), [])}
         elsewhere = [i for i in pid_list if m in M_of[i] and cluster_of[i] not in pd_clusters]
         opportunity = min(1.0, len(elsewhere) / 3)
-        # textual evidence: independent papers whose limitation/future-work sentence names the dataset or method
+        # Match explicit entities or semantic relevance within the statement's problem scope.
         sem = (ev_vecs @ v) if len(ev_vecs) else np.zeros(0)
-        hit_items = [e for e, s in zip(ev_items, sem) if (d in e["d"] or m in e["m"]) or s >= th["semantic_match"]]
-        # prefer sentences that are about this problem space (mention entity AND same paper-problem or no problem named)
+        related_items = [e for e, similarity in zip(ev_items, sem)
+                         if _matches_candidate_evidence(p, d, m, e, float(similarity), th["semantic_match"], P_of)]
+        # Semantic similarity also retrieves broad topic-level future work. Keep it
+        # as related context; only an explicit dataset AND method anchor contributes to
+        # a combination's evidence score. Repeated themes are scored separately.
+        hit_items = [e for e in related_items if d in e["d"] and m in e["m"]]
+        related_context = [e for e in related_items if e not in hit_items]
         indep = {e["paper_id"] for e in hit_items}
         evidence = min(len(indep), 5) / 5
         # overlap must be on the dataset or method — problem-level overlap is too coarse in a single-topic corpus
-        contradiction = 1.0 if (d in contra_ds or m in contra_methods) else 0.0
+        related_contradictions = _related_contradictions(p, d, m, contradictions, P_of)
+        contradiction = 1.0 if related_contradictions else 0.0
         return ({"novelty": novelty, "sparsity": sparsity, "importance": importance, "feasibility": feasibility,
                  "temporal": temporal, "evidence": evidence, "opportunity": opportunity, "contradiction": contradiction},
-                hit_items, elsewhere)
+                hit_items, elsewhere, related_contradictions, related_context)
 
     def score_of(c, tier_evidence):
         s = sum(W[k] * c[k] for k in COMPONENTS)
@@ -199,9 +227,11 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
             if cell > 0 and not abandoned:
                 continue
             nrow, ncol = PD[(p, d)], M[m]
-            c, hits, elsewhere = comps(p, d, m, cell, nrow, ncol)
+            c, hits, elsewhere, related_contradictions, related_context = comps(p, d, m, cell, nrow, ncol)
             cands.append({"type": "combination", "problem": p, "dataset": d, "method": m, "cell_count": cell,
                           "neighbor_row": nrow, "neighbor_col": ncol, "components": c, "hits": hits,
+                          "related_contradictions": related_contradictions,
+                          "related_context": related_context,
                           "kind": "explored_early_then_abandoned" if abandoned else "never_explored",
                           "score": score_of(c, bool(hits)), "elsewhere": elsewhere})
     cands.sort(key=lambda x: -x["score"])
@@ -245,6 +275,11 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
             ch = db.get(Chunk, h["chunk_id"]) if h.get("chunk_id") else None
             ev.append({"type": h["type"], "paper_id": h["paper_id"], "paper_title": by_id[h["paper_id"]].title,
                        "chunk_id": h.get("chunk_id"), "page": ch.page_number if ch else None, "text": h["text"]})
+        for h in sorted(c.get("related_context", []), key=lambda e: e["paper_id"])[:5]:
+            ch = db.get(Chunk, h["chunk_id"]) if h.get("chunk_id") else None
+            ev.append({"type": "related_context", "paper_id": h["paper_id"],
+                       "paper_title": by_id[h["paper_id"]].title, "chunk_id": h.get("chunk_id"),
+                       "page": ch.page_number if ch else None, "text": h["text"]})
         if c["type"] == "combination":
             nb_row = [{"paper_id": i, "title": by_id[i].title} for i in pd_papers[(c["problem"], c["dataset"])][:5]]
             nb_col = [{"paper_id": i, "title": by_id[i].title} for i in [q for q in pid_list if c["method"] in M_of[q]][:5]]
@@ -252,8 +287,18 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
                        "text": f"Cell ({c['problem']} × {c['dataset']} × {c['method']}) has {c['cell_count']} paper(s); "
                                f"{c['dataset']} appears in {c['neighbor_row']} paper(s) on this problem and {c['method']} in {c['neighbor_col']} paper(s) overall.",
                        "neighbors": {"dataset_papers": nb_row, "method_papers": nb_col}})
-            desc = (f"{c['method']} has {'barely been' if c['cell_count'] else 'not been'} evaluated on {c['dataset']} for {c['problem']}, "
-                    f"although {c['dataset']} is used in {c['neighbor_row']} paper(s) on this problem and {c['method']} in {c['neighbor_col']} paper(s) in this corpus.")
+            for ct in c.get("related_contradictions", []):
+                for pair in ct["papers"]:
+                    chunk = db.get(Chunk, pair["chunk_id"]) if pair.get("chunk_id") else None
+                    ev.append({"type": "contradiction", "paper_id": pair["paper_id"],
+                               "paper_title": by_id[pair["paper_id"]].title, "chunk_id": pair.get("chunk_id"),
+                               "page": chunk.page_number if chunk else None, "text": pair["sentence"],
+                               "note": f"Possible conflict: {ct['metric']} differs by {ct['delta']} points on "
+                                       f"{ct['dataset']} ({ct.get('method') or 'method unspecified'})."})
+            desc = (f"The extracted records in this uploaded corpus link {c['method']} with {c['dataset']} for "
+                    f"{c['problem']} in {c['cell_count']} paper(s), although {c['dataset']} appears in "
+                    f"{c['neighbor_row']} paper(s) on this problem and {c['method']} in {c['neighbor_col']} paper(s) overall. "
+                    "Check the source papers and wider literature before treating this as an unevaluated combination.")
             trend = {"kind": c["kind"],
                      "dataset_years": sorted(years[i] for i in pd_papers[(c['problem'], c['dataset'])] if years.get(i)),
                      "method_years": sorted(years[q] for q in pid_list if c["method"] in M_of[q] and years.get(q))}
@@ -279,8 +324,10 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
         for g in gaps[:8]:
             try:
                 g["rationale"] = llm.complete(
-                    "In 2 sentences explain why this candidate research gap matters. Use ONLY the facts given; do not add claims.",
-                    json.dumps({"gap": g["description"], "evidence": [e["text"] for e in g["evidence"]][:6]}), 220)
+                    "In 2 sentences explain why this candidate research gap matters. Use ONLY the facts given. "
+                    "Related context is background; it does not establish a specific dataset/method gap or global novelty.",
+                    json.dumps({"gap": g["description"], "evidence": [
+                        {"type": e["type"], "text": e["text"]} for e in g["evidence"]][:6]}), 220)
             except Exception:
                 break
 

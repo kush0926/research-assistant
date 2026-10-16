@@ -1,5 +1,6 @@
 """External paper search (arXiv, Semantic Scholar, OpenAlex) + safe open-access PDF download (Part 20)."""
 import ipaddress
+import re
 import socket
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
@@ -9,11 +10,16 @@ import httpx
 from ..config import settings
 
 UA = {"User-Agent": "ResearchAssistant/1.0 (academic project)"}
+MAX_PDF_REDIRECTS = 5
 
 
 def search_arxiv(q: str, limit: int = 10) -> list[dict]:
-    r = httpx.get("http://export.arxiv.org/api/query", headers=UA, timeout=20,
-                  params={"search_query": f"all:{q}", "start": 0, "max_results": limit, "sortBy": "relevance"})
+    terms = re.findall(r"[A-Za-z0-9][A-Za-z0-9._+-]*", q)
+    if not terms:
+        return []
+    search_query = " AND ".join(f"all:{term}" for term in terms)
+    r = httpx.get("https://export.arxiv.org/api/query", headers=UA, timeout=20,
+                  params={"search_query": search_query, "start": 0, "max_results": limit, "sortBy": "relevance"})
     r.raise_for_status()
     ns = {"a": "http://www.w3.org/2005/Atom"}
     out = []
@@ -68,8 +74,12 @@ def search(q: str, source: str = "semanticscholar", limit: int = 10) -> list[dic
 
 def _is_safe_url(url: str) -> bool:
     """SSRF guard: https only, no IP literals, hostname must resolve to public addresses."""
-    u = urlparse(url)
-    if u.scheme != "https" or not u.hostname:
+    try:
+        u = urlparse(url)
+        port = u.port
+    except ValueError:
+        return False
+    if u.scheme != "https" or not u.hostname or u.username or u.password or port not in (None, 443):
         return False
     try:
         ipaddress.ip_address(u.hostname)
@@ -77,19 +87,30 @@ def _is_safe_url(url: str) -> bool:
     except ValueError:
         pass
     try:
-        return all(ipaddress.ip_address(i[4][0]).is_global for i in socket.getaddrinfo(u.hostname, 443))
+        addresses = socket.getaddrinfo(u.hostname, 443)
+        return bool(addresses) and all(ipaddress.ip_address(i[4][0]).is_global for i in addresses)
     except Exception:
         return False
 
 
 def download_pdf(url: str) -> bytes:
-    if not _is_safe_url(url):
-        raise ValueError("URL rejected (must be a public https URL)")
-    with httpx.stream("GET", url, headers=UA, timeout=60, follow_redirects=True) as r:
-        r.raise_for_status()
-        data = bytearray()
-        for chunk in r.iter_bytes():
-            data += chunk
-            if len(data) > settings.MAX_UPLOAD_MB * 1024 * 1024:
-                raise ValueError("PDF too large")
-    return bytes(data)
+    current = url
+    with httpx.Client(timeout=60, follow_redirects=False) as client:
+        for redirect_count in range(MAX_PDF_REDIRECTS + 1):
+            if not _is_safe_url(current):
+                raise ValueError("URL rejected (must be a public https URL)")
+            with client.stream("GET", current, headers=UA) as r:
+                if r.is_redirect:
+                    location = r.headers.get("location")
+                    if not location or redirect_count == MAX_PDF_REDIRECTS:
+                        raise ValueError("Too many or invalid PDF redirects")
+                    current = str(r.url.join(location))
+                    continue
+                r.raise_for_status()
+                data = bytearray()
+                for chunk in r.iter_bytes():
+                    data.extend(chunk)
+                    if len(data) > settings.MAX_UPLOAD_MB * 1024 * 1024:
+                        raise ValueError("PDF too large")
+                return bytes(data)
+    raise ValueError("Too many PDF redirects")

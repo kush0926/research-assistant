@@ -1,0 +1,19 @@
+.research-markdown { color: var(--ink); font-family: var(--sans); font-size: .96rem; line-height: 1.8; overflow-wrap: anywhere; }
+.research-markdown > :first-child { margin-top: 0; }
+.research-markdown > :last-child { margin-bottom: 0; }
+.research-markdown p { margin: 0 0 1rem; max-width: 76ch; }
+.research-markdown h2 { margin: 1.8rem 0 .65rem; font-family: var(--sans); font-size: 1.2rem; line-height: 1.4; font-weight: 650; letter-spacing: -.025em; }
+.research-markdown h3 { margin: 1.35rem 0 .5rem; font-family: var(--sans); font-size: 1rem; font-weight: 600; }
+.research-markdown ul, .research-markdown ol { padding-left: 1.4rem; margin: .7rem 0 1.3rem; }
+.research-markdown li { padding-left: .25rem; margin: 0 0 .75rem; max-width: 76ch; }
+.research-markdown li::marker { color: var(--teal); }
+.research-markdown strong { font-weight: 650; }
+.research-markdown a { color: var(--teal); text-underline-offset: .2em; }
+.research-markdown code { background: var(--paper); padding: .12rem .3rem; border-radius: 3px; font-size: .86em; }
+.research-markdown pre { padding: 1rem; background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; overflow-x: auto; white-space: pre; }
+.research-markdown pre code { padding: 0; background: none; }
+.research-markdown blockquote { margin: 1rem 0; padding: .4rem 1rem; border-left: 3px solid var(--teal); color: var(--ink-2); }
+.research-markdown hr { border: 0; border-top: 1px solid var(--rule); margin: 1.5rem 0; }
+.research-markdown .markdown-tag { display: inline-block; padding: 0 .3rem; border: 1px solid var(--rule); border-radius: 3px; color: var(--teal); background: var(--paper); font-size: .78em; font-weight: 550; line-height: 1.6; white-space: nowrap; }
+.research-markdown .markdown-references { list-style: none; padding: 0; }
+.research-markdown .markdown-references li { padding: .7rem 0; margin: 0; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: .86rem; }

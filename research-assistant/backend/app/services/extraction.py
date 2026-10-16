@@ -43,9 +43,21 @@ def find_entities(text: str, kind: str) -> Counter:
     return found
 
 
+def _entities_with_evidence(chunks: list[Chunk], kind: str, limit: int) -> list[dict]:
+    """Aggregate entity counts while retaining a source chunk for each canonical entity."""
+    counts, evidence = Counter(), {}
+    for chunk in chunks:
+        for name, count in find_entities(chunk.text, kind).items():
+            counts[name] += count
+            evidence.setdefault(name, chunk.id)
+    return [{"name": name, "count": count, "chunk_id": evidence[name]}
+            for name, count in counts.most_common(limit)]
+
+
 _GENERIC = {"the", "this", "our", "a", "an", "public", "new", "large", "small", "speech", "voice", "audio", "training",
             "test", "testing", "validation", "clinical", "benchmark", "standard", "available", "original", "full", "same",
-            "following", "above", "recording", "recordings", "healthy", "patient", "data"}
+            "following", "above", "recording", "recordings", "healthy", "patient", "data",
+            "each", "every", "both", "these", "those", "another", "other", "several", "multiple", "all", "any"}
 
 
 def novel_datasets(text: str, known: set[str]) -> Counter:
@@ -85,7 +97,9 @@ def method_category(name: str) -> str:
 
 
 # ---------------- sentence cues ----------------
-LIMIT_RE = re.compile(r"\b(limitations?|limited (by|to)|small (sample|dataset|corpus|number)|only (evaluated|tested|trained|validated)|"
+LIMIT_RE = re.compile(r"\b(limitations?|limited (by|to)|small (sample|dataset|corpus)|"
+                      r"small number of (speakers|subjects|patients|participants|samples|recordings|examples)|"
+                      r"only (evaluated|tested|trained|validated)|"
                       r"not (been )?(evaluated|tested|validated|explored)|lack(s|ed)? of|restricted to|does not generali[sz]e|"
                       r"poor generali[sz]ation|class imbalance|imbalanced|single dataset|few (speakers|subjects|participants|patients)|"
                       r"remain(s)? (unclear|unexplored|unaddressed)|unable to)\b", re.I)
@@ -134,19 +148,24 @@ def extract_results(chunks: list[Chunk], default_dataset: str | None, default_me
             continue
         for s in split_sentences(c.text):
             for m in RESULT_RE.finditer(s):
+                if re.search(r"%\s*of\b|\b(maximum|maximal|relative)\b", m.group(0), re.I):
+                    continue
+                if re.match(r"\s+(improvement|increase|gain|reduction|decrease)\b", s[m.end():], re.I):
+                    continue
                 val = m.group(1) or m.group(4)
                 met = m.group(2) or m.group(3)
                 try:
                     v = float(val)
                 except Exception:
                     continue
-                if v <= 1.0:
+                if v <= 1.0 and "%" not in m.group(0):
                     v *= 100
                 if not (0 < v <= 100):
                     continue
                 ds = list(find_entities(s, "datasets")) or ([default_dataset] if default_dataset else [])
-                md = list(find_entities(s, "methods")) or ([default_method] if default_method else [])
-                recs.append({"dataset": ds[0] if ds else None, "method": md[0] if md else None,
+                md = [name for name in find_entities(s, "methods")
+                      if method_category(name) not in ("feature", "technique")] or ([default_method] if default_method else [])
+                recs.append({"dataset": ds[0] if len(ds) == 1 else None, "method": md[0] if len(md) == 1 else None,
                              "metric": _norm_metric(met), "value": round(v, 2), "sentence": s,
                              "chunk_id": c.id, "page": c.page_number})
     seen, out = set(), []
@@ -175,8 +194,15 @@ def llm_fields(sec: dict[str, list[Chunk]], title: str) -> dict | None:
             f"{txt('discussion', 'limitations', 'future_work', 'conclusion', cap=3200)}\n\n"
             'Return JSON: {"problem": str, "problem_label": "<=6 word canonical task name", "objectives": [str], '
             '"research_questions": [str], "methodology": str, "contributions": [str], '
-            '"experimental_setup": str, "limitations": [str], "future_work": [str]}')
-    data = llm.complete_json(_LLM_SYS, user, 1800)
+            '"experimental_setup": str, "limitations": [str], "future_work": [str], '
+            '"methods": [{"name": str, "role": "proposed|used|baseline", "category": "classical|deep|transformer|llm|encoder|model", "quote": str}], '
+            '"datasets": [{"name": str, "quote": str}]}. '
+            'For methods include task classifiers and representation encoders actually used or evaluated, including baselines. '
+            'Exclude metrics, software libraries, pooling, feature descriptors and preprocessing-only models. '
+            'For datasets include proper names, not generic phrases or invented names for unnamed collections. '
+            'For every entity copy one short, complete, verbatim supporting sentence from the supplied text as quote. '
+            'Do not paraphrase quotes or join excerpts with ellipses. Return [] when no named entity is present.')
+    data = llm.complete_json(_LLM_SYS, user, 2600)
     return data if isinstance(data, dict) else None
 
 
@@ -186,6 +212,46 @@ def _locate_chunk(chunks: list[Chunk], sentence: str) -> int | None:
         if key in re.sub(r"\s+", " ", c.text):
             return c.id
     return None
+
+
+def grounded_llm_entities(items, kind: str, chunks: list[Chunk]) -> list[dict] | None:
+    """Accept only named entities anchored by a complete quote in one source chunk.
+
+    None means the response is unusable and dictionary extraction should remain.
+    A valid empty array explicitly reports no named entities in the supplied context.
+    """
+    if not isinstance(items, list):
+        return None
+    normalized = lambda value: " ".join(value.split()).casefold()
+    accepted, seen = [], set()
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not isinstance(item.get("quote"), str):
+            continue
+        name, quote = item["name"].strip(), item["quote"].strip()
+        if len(name) < 3 or len(quote) < 12 or all(w in _GENERIC for w in re.findall(r"[a-z]+", name.lower())):
+            continue
+        canon = canonical(kind, name)
+        aliases = [name, canon]
+        if canon in DICT[kind]:
+            aliases.extend(DICT[kind][canon]["syn"])
+        compact = lambda value: re.sub(r"[^a-z0-9]", "", value.casefold())
+        if not any(compact(alias) in compact(quote) for alias in aliases if len(compact(alias)) >= 3):
+            continue
+        chunk = next((c for c in chunks if normalized(quote) in normalized(c.text)), None)
+        if chunk is None or canon.casefold() in seen:
+            continue
+        result = {"name": canon, "count": 1, "chunk_id": chunk.id, "quote": quote}
+        if kind == "methods":
+            role = item.get("role", "used")
+            if role not in ("proposed", "used", "baseline"):
+                continue
+            category = method_category(canon) or item.get("category", "model")
+            if category not in ("classical", "deep", "transformer", "llm", "model", "encoder"):
+                continue
+            result.update(role=role, category=category)
+        seen.add(canon.casefold())
+        accepted.append(result)
+    return accepted if accepted or not items else None
 
 
 # ---------------- main entry ----------------
@@ -214,25 +280,51 @@ def analyze_paper(db: Session, paper: Paper, references_text: str = "") -> dict:
     scope_m = [c for c in chunks if c.section in ("abstract", "method", "experiments", "results", "front", "conclusion")] or chunks
     scope_d = [c for c in chunks if c.section in ("abstract", "method", "experiments", "results", "front")] or chunks
     mtxt, dtxt = " ".join(c.text for c in scope_m), " ".join(c.text for c in scope_d)
-    methods = find_entities(mtxt, "methods")
-    datasets = find_entities(dtxt, "datasets")
-    for n, cnt in novel_datasets(dtxt, set(datasets)).items():
-        if cnt >= 1:
-            datasets[n] += cnt
-    metrics = find_entities(" ".join(c.text for c in sec.get("results", []) + sec.get("experiments", [])) or all_text, "metrics")
+    method_items = _entities_with_evidence(scope_m, "methods", 8)
+    dataset_items = _entities_with_evidence(scope_d, "datasets", 10)
+    known_datasets = {item["name"] for item in dataset_items}
+    dataset_evidence = {item["name"]: item["chunk_id"] for item in dataset_items}
+    dataset_counts = Counter({item["name"]: item["count"] for item in dataset_items})
+    for chunk in scope_d:
+        for name, count in novel_datasets(chunk.text, known_datasets).items():
+            dataset_counts[name] += count
+            dataset_evidence.setdefault(name, chunk.id)
+    dataset_items = [{"name": name, "count": count, "chunk_id": dataset_evidence[name]}
+                     for name, count in dataset_counts.most_common(10)]
+    metric_scope = sec.get("results", []) + sec.get("experiments", []) or chunks
+    metric_items = _entities_with_evidence(metric_scope, "metrics", 6)
+    methods = Counter({item["name"]: item["count"] for item in method_items})
     proposed = set()
     for s in split_sentences(mtxt):
         if PROPOSE_RE.search(s):
             proposed |= set(find_entities(s, "methods"))
     # features (MFCC/spectrogram) are inputs, techniques are not "the method" for the gap matrix
+    method_evidence = {item["name"]: item["chunk_id"] for item in method_items}
     m_list = [{"name": k, "role": "proposed" if k in proposed else "used", "count": v,
-               "category": method_category(k)} for k, v in methods.most_common(8)]
-    d_list = [{"name": k, "count": v} for k, v in datasets.most_common(5)]
+               "category": method_category(k), "chunk_id": method_evidence[k]} for k, v in methods.most_common(8)]
+    d_list = dataset_items[:5]
     put("methods", m_list, None, "ner"); put("datasets", d_list, None, "ner")
-    put("metrics", [{"name": k, "count": v} for k, v in metrics.most_common(6)], None, "ner")
+    put("metrics", metric_items, None, "ner")
 
     # --- interpretive: LLM first, heuristic fallback ---
     L = llm_fields(sec, paper.title or "")
+    if L:
+        llm_methods = grounded_llm_entities(L.get("methods"), "methods", chunks)
+        llm_datasets = grounded_llm_entities(L.get("datasets"), "datasets", chunks)
+        if llm_methods:
+            # The LLM sees bounded excerpts. Preserve dictionary discoveries outside
+            # those excerpts and prefer quoted LLM records for matching names.
+            names = {item["name"].casefold() for item in llm_methods}
+            m_list = [{**item, "source_method": "llm"} for item in llm_methods] + [
+                {**item, "source_method": "ner"} for item in m_list if item["name"].casefold() not in names]
+            fields.pop("methods", None)
+            put("methods", m_list, None, "hybrid")
+        if llm_datasets:
+            names = {item["name"].casefold() for item in llm_datasets}
+            d_list = [{**item, "source_method": "llm"} for item in llm_datasets] + [
+                {**item, "source_method": "ner"} for item in d_list if item["name"].casefold() not in names]
+            fields.pop("datasets", None)
+            put("datasets", d_list, None, "hybrid")
     ctx_chunks = [c for c in chunks if c.section in ("abstract", "introduction", "front")]
     fut_chunks = [c for c in chunks if c.section in ("limitations", "future_work", "discussion", "conclusion", "results")]
     seen: set = set()
@@ -279,8 +371,11 @@ def analyze_paper(db: Session, paper: Paper, references_text: str = "") -> dict:
         put("future_work", _sentence_with_chunk(fut_chunks, FUTURE_RE, 5, seen))
 
     # --- results ---
-    dd = d_list[0]["name"] if len(d_list) == 1 else (d_list[0]["name"] if d_list else None)
-    pm = next((m["name"] for m in m_list if m["role"] == "proposed"), m_list[0]["name"] if m_list else None)
+    dd = d_list[0]["name"] if len(d_list) == 1 else None
+    model_items = [m for m in m_list if m.get("category") not in ("feature", "technique")]
+    proposed_items = [m for m in model_items if m["role"] == "proposed"]
+    pm = proposed_items[0]["name"] if len(proposed_items) == 1 else (
+        model_items[0]["name"] if len(model_items) == 1 else None)
     results = extract_results(chunks, dd, pm)
     put("result_records", results, results[0]["chunk_id"] if results else None)
     if results:
@@ -346,13 +441,17 @@ def _persist(db, paper, fields, methods, datasets, problems, chunks):
     for name in datasets:
         d = _get_or_create(db, Dataset, name=name)
         db.add(PaperDataset(paper_id=paper.id, dataset_id=d.id, role="used"))
+    seen_problem_ids: set[int] = set()
+    seen_topic_ids: set[int] = set()
     for label in problems:
         pr = resolve_problem(db, label)
-        if not db.query(PaperProblem).filter_by(paper_id=paper.id, problem_id=pr.id).first():
+        if pr.id not in seen_problem_ids:
             db.add(PaperProblem(paper_id=paper.id, problem_id=pr.id))
+            seen_problem_ids.add(pr.id)
         t = _get_or_create(db, Topic, label=pr.name)
-        if not db.query(PaperTopic).filter_by(paper_id=paper.id, topic_id=t.id).first():
+        if t.id not in seen_topic_ids:
             db.add(PaperTopic(paper_id=paper.id, topic_id=t.id, confidence=1.0))
+            seen_topic_ids.add(t.id)
     db.commit()
 
 

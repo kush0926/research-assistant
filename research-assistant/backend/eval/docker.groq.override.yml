@@ -1,0 +1,19 @@
+# Apply after docker.readiness.override.yml to enable live Groq in the isolated test stack.
+# The root .env is already loaded by the backend service; never put an API key here.
+services:
+  backend:
+    environment:
+      DATABASE_URL: postgresql://ra:ra@db:5432/ra_groq_full_test
+      LLM_PROVIDER: groq
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-20b}
+      EMBEDDING_BACKEND: bge
+      RERANKER_BACKEND: bge
+      HF_HOME: /opt/huggingface
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      WARMUP: "true"
+    volumes: !override
+      - groq_full_appdata:/data
+      - ./backend/data_store/docker_hf_cache:/opt/huggingface:ro
+volumes:
+  groq_full_appdata: {}

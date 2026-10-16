@@ -21,19 +21,23 @@ class Settings:
     # --- auth / security ---
     JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
     JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "720"))
-    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")]
+    CORS_ORIGINS = [o.strip() for o in os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")]
     MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "25"))
     MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "80"))
     PARSE_TIMEOUT_S = int(os.getenv("PARSE_TIMEOUT_S", "60"))
     PARSE_MEM_MB = int(os.getenv("PARSE_MEM_MB", "2048"))
     RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "30"))
 
-    # --- LLM (provider-agnostic): anthropic | openai | gemini | none (offline heuristics) ---
+    # --- LLM: anthropic | openai | groq | gemini | none (offline heuristics) ---
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "none").lower()
     LLM_MODEL = os.getenv("LLM_MODEL", "")
+    LLM_VERIFIER_MODEL = os.getenv("LLM_VERIFIER_MODEL", "")  # blank uses the generation model
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")  # also Ollama/Groq/etc.
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
     # --- embeddings / vector DB / reranker ---
@@ -42,7 +46,7 @@ class Settings:
     RERANKER_BACKEND = os.getenv("RERANKER_BACKEND", "auto")  # auto | bge | lexical
     RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
     VECTOR_BACKEND = os.getenv("VECTOR_BACKEND", "auto")  # auto | chroma | numpy
-    RETRIEVE_K = int(os.getenv("RETRIEVE_K", "20"))
+    RETRIEVE_K = int(os.getenv("RETRIEVE_K", "10"))
     RERANK_N = int(os.getenv("RERANK_N", "6"))
 
     # --- document processing ---

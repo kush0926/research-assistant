@@ -1,0 +1,339 @@
+[
+  {
+    "source": "arxiv",
+    "external_id": "2106.00531v2",
+    "title": "Supervised Speech Representation Learning for Parkinson's Disease Classification",
+    "year": 2021,
+    "authors": [
+      "Parvaneh Janbakhshi",
+      "Ina Kodrasi"
+    ],
+    "abstract": "Recently proposed automatic pathological speech classification techniques use unsupervised auto-encoders to obtain a high-level abstract representation of speech. Since these representations are learned based on reconstructing the input, there is no guarantee that they are robust to pathology-unrelated cues such as speaker identity information. Further, these representations are not necessarily discriminative for pathology detection. In this paper, we exploit supervised auto-encoders to extract robust and discriminative speech representations for Parkinson's disease classification. To reduce the influence of speaker variabilities unrelated to pathology, we propose to obtain speaker identity-invariant representations by adversarial training of an auto-encoder and a speaker identification task. To obtain a discriminative representation, we propose to jointly train an auto-encoder and a pathological speech classifier. Experimental results on a Spanish database show that the proposed supervised representation learning methods yield more robust and discriminative representations for automatically classifying Parkinson's disease speech, outperforming the baseline unsupervised representation learning system.",
+    "url": "https://arxiv.org/abs/2106.00531v2",
+    "pdf_url": "https://arxiv.org/pdf/2106.00531v2",
+    "filename": "arxiv_2106_00531v2.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2609.20875v1",
+    "title": "Cross-Lingual Parkinson's Disease Severity Assessment Using Pre-trained Speech Embeddings: A Multi-Class Evaluation",
+    "year": 2026,
+    "authors": [
+      "Simon Pals",
+      "Cristian Tejedor-Garcia"
+    ],
+    "abstract": "Parkinson's disease (PD) often manifests through speech impairments, facilitating accessible, non-invasive, and cost-effective severity assessment for early diagnosis and progression tracking. Despite advances in speech foundation models (SFMs), their cross-lingual generalization for PD severity multi-class classification remains underexplored due to limited labeled data, a lack of explainable methods and variability across languages and datasets. In this work, we evaluate pre-trained embeddings from four state-of-the-art open-source SFMs across three datasets in zero-shot and k-shot cross-lingual settings for multi-class PD severity assessment. Our results show that pre-trained speech embeddings enable meaningful cross-lingual transfer, although performance is sensitive to dataset properties, preprocessing, and adaptation strategy. Misclassifications under these conditions related to inter-speaker variability and atypical speech patterns highlight the need for more robust feature extraction and modeling for PD severity assessment while emphasizing the importance of explainability for reliable clinical insights.",
+    "url": "https://arxiv.org/abs/2609.20875v1",
+    "pdf_url": "https://arxiv.org/pdf/2609.20875v1",
+    "filename": "arxiv_2609_20875v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2503.10301v1",
+    "title": "Bilingual Dual-Head Deep Model for Parkinson's Disease Detection from Speech",
+    "year": 2025,
+    "authors": [
+      "Moreno La Quatra",
+      "Juan Rafael Orozco-Arroyave",
+      "Marco Sabato Siniscalchi"
+    ],
+    "abstract": "This work aims to tackle the Parkinson's disease (PD) detection problem from the speech signal in a bilingual setting by proposing an ad-hoc dual-head deep neural architecture for type-based binary classification. One head is specialized for diadochokinetic patterns. The other head looks for natural speech patterns present in continuous spoken utterances. Only one of the two heads is operative accordingly to the nature of the input. Speech representations are extracted from self-supervised learning (SSL) models and wavelet transforms. Adaptive layers, convolutional bottlenecks, and contrastive learning are exploited to reduce variations across languages. Our solution is assessed against two distinct datasets, EWA-DB, and PC-GITA, which cover Slovak and Spanish languages, respectively. Results indicate that conventional models trained on a single language dataset struggle with cross-linguistic generalization, and naive combinations of datasets are suboptimal. In contrast, our model improves generalization on both languages, simultaneously.",
+    "url": "https://arxiv.org/abs/2503.10301v1",
+    "pdf_url": "https://arxiv.org/pdf/2503.10301v1",
+    "filename": "arxiv_2503_10301v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2406.16128v1",
+    "title": "Exploiting Foundation Models and Speech Enhancement for Parkinson's Disease Detection from Speech in Real-World Operative Conditions",
+    "year": 2024,
+    "authors": [
+      "Moreno La Quatra",
+      "Maria Francesca Turco",
+      "Torbjørn Svendsen",
+      "Giampiero Salvi",
+      "Juan Rafael Orozco-Arroyave",
+      "Sabato Marco Siniscalchi"
+    ],
+    "abstract": "This work is concerned with devising a robust Parkinson's (PD) disease detector from speech in real-world operating conditions using (i) foundational models, and (ii) speech enhancement (SE) methods. To this end, we first fine-tune several foundational-based models on the standard PC-GITA (s-PC-GITA) clean data. Our results demonstrate superior performance to previously proposed models. Second, we assess the generalization capability of the PD models on the extended PC-GITA (e-PC-GITA) recordings, collected in real-world operative conditions, and observe a severe drop in performance moving from ideal to real-world conditions. Third, we align training and testing conditions applaying off-the-shelf SE techniques on e-PC-GITA, and a significant boost in performance is observed only for the foundational-based models. Finally, combining the two best foundational-based models trained on s-PC-GITA, namely WavLM Base and Hubert Base, yielded top performance on the enhanced e-PC-GITA.",
+    "url": "https://arxiv.org/abs/2406.16128v1",
+    "pdf_url": "https://arxiv.org/pdf/2406.16128v1",
+    "filename": "arxiv_2406_16128v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2412.02006v2",
+    "title": "Unveiling Interpretability in Self-Supervised Speech Representations for Parkinson's Diagnosis",
+    "year": 2024,
+    "authors": [
+      "David Gimeno-Gómez",
+      "Catarina Botelho",
+      "Anna Pompili",
+      "Alberto Abad",
+      "Carlos-D. Martínez-Hinarejos"
+    ],
+    "abstract": "Recent works in pathological speech analysis have increasingly relied on powerful self-supervised speech representations, leading to promising results. However, the complex, black-box nature of these embeddings and the limited research on their interpretability significantly restrict their adoption for clinical diagnosis. To address this gap, we propose a novel, interpretable framework specifically designed to support Parkinson's Disease (PD) diagnosis. Through the design of simple yet effective cross-attention mechanisms for both embedding- and temporal-level analysis, the proposed framework offers interpretability from two distinct but complementary perspectives. Experimental findings across five well-established speech benchmarks for PD detection demonstrate the framework's capability to identify meaningful speech patterns within self-supervised representations for a wide range of assessment tasks. Fine-grained temporal analyses further underscore its potential to enhance the interpretability of deep-learning pathological speech models, paving the way for the development of more transparent, trustworthy, and clinically applicable computer-assisted diagnosis systems in this domain. Moreover, in terms of classification accuracy, our method achieves results competitive with state-of-the-art approaches, while also demonstrating robustness in cross-lingual scenarios when applied to spontaneous speech production.",
+    "url": "https://arxiv.org/abs/2412.02006v2",
+    "pdf_url": "https://arxiv.org/pdf/2412.02006v2",
+    "filename": "arxiv_2412_02006v2.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2111.09014v1",
+    "title": "Subject Enveloped Deep Sample Fuzzy Ensemble Learning Algorithm of Parkinson's Speech Data",
+    "year": 2021,
+    "authors": [
+      "Yiwen Wang",
+      "Fan Li",
+      "Xiaoheng Zhang",
+      "Pin Wang",
+      "Yongming Li"
+    ],
+    "abstract": "Parkinson disease (PD)'s speech recognition is an effective way for its diagnosis, which has become a hot and difficult research area in recent years. As we know, there are large corpuses (segments) within one subject. However, too large segments will increase the complexity of the classification model. Besides, the clinicians interested in finding diagnostic speech markers that reflect the pathology of the whole subject. Since the optimal relevant features of each speech sample segment are different, it is difficult to find the uniform diagnostic speech markers. Therefore, it is necessary to reconstruct the existing large segments within one subject into few segments even one segment within one subject, which can facilitate the extraction of relevant speech features to characterize diagnostic markers for the whole subject. To address this problem, an enveloped deep speech sample learning algorithm for Parkinson's subjects based on multilayer fuzzy c-mean (MlFCM) clustering and interlayer consistency preservation is proposed in this paper. The algorithm can be used to achieve intra-subject sample reconstruction for Parkinson's disease (PD) to obtain a small number of high-quality prototype sample segments. At the end of the paper, several representative PD speech datasets are selected and compared with the state-of-the-art related methods, respectively. The experimental results show that the proposed algorithm is effective signifcantly.",
+    "url": "https://arxiv.org/abs/2111.09014v1",
+    "pdf_url": "https://arxiv.org/pdf/2111.09014v1",
+    "filename": "arxiv_2111_09014v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2412.18248v1",
+    "title": "Detection and Forecasting of Parkinson Disease Progression from Speech Signal Features Using MultiLayer Perceptron and LSTM",
+    "year": 2024,
+    "authors": [
+      "Majid Ali",
+      "Hina Shakir",
+      "Asia Samreen",
+      "Sohaib Ahmed"
+    ],
+    "abstract": "Accurate diagnosis of Parkinson disease, especially in its early stages, can be a challenging task. The application of machine learning techniques helps improve the diagnostic accuracy of Parkinson disease detection but only few studies have presented work towards the prediction of disease progression. In this research work, Long Short Term Memory LSTM was trained using the diagnostic features on Parkinson patients speech signals, to predict the disease progression while a Multilayer Perceptron MLP was trained on the same diagnostic features to detect the disease. Diagnostic features selected using two well-known feature selection methods named Relief-F and Sequential Forward Selection and applied on LSTM and MLP have shown to accurately predict the disease progression as stage 2 and 3 and its existence respectively.",
+    "url": "https://arxiv.org/abs/2412.18248v1",
+    "pdf_url": "https://arxiv.org/pdf/2412.18248v1",
+    "filename": "arxiv_2412_18248v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2111.10207v1",
+    "title": "Comparative Study of Speech Analysis Methods to Predict Parkinson's Disease",
+    "year": 2021,
+    "authors": [
+      "Adedolapo Aishat Toye",
+      "Suryaprakash Kompalli"
+    ],
+    "abstract": "One of the symptoms observed in the early stages of Parkinson's Disease (PD) is speech impairment. Speech disorders can be used to detect this disease before it degenerates. This work analyzes speech features and machine learning approaches to predict PD. Acoustic features such as shimmer and jitter variants, and Mel Frequency Cepstral Coefficients (MFCC) are extracted from speech signals. We use two datasets in this work: the MDVR-KCL and the Italian Parkinson's Voice and Speech database. To separate PD and non-PD speech signals, seven classification models were implemented: K-Nearest Neighbor, Decision Trees, Support Vector Machines, Naive Bayes, Logistic Regression, Gradient Boosting, Random Forests. Three feature sets were used for each of the models: (a) Acoustic features only, (b) All the acoustic features and MFCC, (c) Selected subset of features from acoustic features and MFCC. Using all the acoustic features and MFCC, together with SVM produced the highest performance with an accuracy of 98% and F1-Score of 99%. When compared with prior art, this shows a better performance. Our code and related documentation is available in a public domain repository.",
+    "url": "https://arxiv.org/abs/2111.10207v1",
+    "pdf_url": "https://arxiv.org/pdf/2111.10207v1",
+    "filename": "arxiv_2111_10207v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2507.16832v1",
+    "title": "Does Language Matter for Early Detection of Parkinson's Disease from Speech?",
+    "year": 2025,
+    "authors": [
+      "Peter Plantinga",
+      "Briac Cordelle",
+      "Dominique Louër",
+      "Mirco Ravanelli",
+      "Denise Klein"
+    ],
+    "abstract": "Using speech samples as a biomarker is a promising avenue for detecting and monitoring the progression of Parkinson's disease (PD), but there is considerable disagreement in the literature about how best to collect and analyze such data. Early research in detecting PD from speech used a sustained vowel phonation (SVP) task, while some recent research has explored recordings of more cognitively demanding tasks. To assess the role of language in PD detection, we tested pretrained models with varying data types and pretraining objectives and found that (1) text-only models match the performance of vocal-feature models, (2) multilingual Whisper outperforms self-supervised models whereas monolingual Whisper does worse, and (3) AudioSet pretraining improves performance on SVP but not spontaneous speech. These findings together highlight the critical role of language for the early detection of Parkinson's disease.",
+    "url": "https://arxiv.org/abs/2507.16832v1",
+    "pdf_url": "https://arxiv.org/pdf/2507.16832v1",
+    "filename": "arxiv_2507_16832v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2105.14704v1",
+    "title": "Parkinsonian Chinese Speech Analysis towards Automatic Classification of Parkinson's Disease",
+    "year": 2021,
+    "authors": [
+      "Hao Fang",
+      "Chen Gong",
+      "Chen Zhang",
+      "Yanan Sui",
+      "Luming Li"
+    ],
+    "abstract": "Speech disorders often occur at the early stage of Parkinson's disease (PD). The speech impairments could be indicators of the disorder for early diagnosis, while motor symptoms are not obvious. In this study, we constructed a new speech corpus of Mandarin Chinese and addressed classification of patients with PD. We implemented classical machine learning methods with ranking algorithms for feature selection, convolutional and recurrent deep networks, and an end to end system. Our classification accuracy significantly surpassed state-of-the-art studies. The result suggests that free talk has stronger classification power than standard speech tasks, which could help the design of future speech tasks for efficient early diagnosis of the disease. Based on existing classification methods and our natural speech study, the automatic detection of PD from daily conversation could be accessible to the majority of the clinical population.",
+    "url": "https://arxiv.org/abs/2105.14704v1",
+    "pdf_url": "https://arxiv.org/pdf/2105.14704v1",
+    "filename": "arxiv_2105_14704v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2605.14066v2",
+    "title": "A Benchmark for Early-stage Parkinson's Disease Detection from Speech",
+    "year": 2026,
+    "authors": [
+      "Terry Yi Zhong",
+      "Cristian Tejedor-Garcia",
+      "Khiet P. Truong",
+      "Janna Maas",
+      "Louis ten Bosch",
+      "Bastiaan R. Bloem"
+    ],
+    "abstract": "Early-stage Parkinson's disease (EarlyPD) detection from speech is clinically meaningful yet underexplored, and published results are hard to compare because studies differ in datasets, languages, tasks, evaluation protocols, and EarlyPD definitions. To address this issue, we propose the first benchmark for speech-based EarlyPD detection, with a speaker-independent split designed for fair and replicable cross-method evaluation on researcher-accessible datasets. The benchmark covers three common speech tasks and evaluates methods under different training-resource settings. We also present multi-dimensional evaluation breakdowns by dataset, aggregation level, gender, and disease stage to support fine-grained comparisons and clinical adoption. Our results provide a replicable reference and actionable insights, encouraging the adoption of this publicly available benchmark to advance robust and clinically meaningful speech-based EarlyPD detection.",
+    "url": "https://arxiv.org/abs/2605.14066v2",
+    "pdf_url": "https://arxiv.org/pdf/2605.14066v2",
+    "filename": "arxiv_2605_14066v2.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2009.01231v4",
+    "title": "Detecting Parkinson's Disease From an Online Speech-task",
+    "year": 2020,
+    "authors": [
+      "Wasifur Rahman",
+      "Sangwu Lee",
+      "Md. Saiful Islam",
+      "Victor Nikhil Antony",
+      "Harshil Ratnu",
+      "Mohammad Rafayet Ali",
+      "Abdullah Al Mamun",
+      "Ellen Wagner",
+      "Stella Jensen-Roberts",
+      "Max A. Little",
+      "Ray Dorsey",
+      "Ehsan Hoque"
+    ],
+    "abstract": "In this paper, we envision a web-based framework that can help anyone, anywhere around the world record a short speech task, and analyze the recorded data to screen for Parkinson's disease (PD). We collected data from 726 unique participants (262 PD, 38% female; 464 non-PD, 65% female; average age: 61) -- from all over the US and beyond. A small portion of the data was collected in a lab setting to compare quality. The participants were instructed to utter a popular pangram containing all the letters in the English alphabet \"the quick brown fox jumps over the lazy dog..\". We extracted both standard acoustic features (Mel Frequency Cepstral Coefficients (MFCC), jitter and shimmer variants) and deep learning based features from the speech data. Using these features, we trained several machine learning algorithms. We achieved 0.75 AUC (Area Under The Curve) performance on determining presence of self-reported Parkinson's disease by modeling the standard acoustic features through the XGBoost -- a gradient-boosted decision tree model. Further analysis reveal that the widely used MFCC features and a subset of previously validated dysphonia features designed for detecting Parkinson's from verbal phonation task (pronouncing 'ahh') contains the most distinct information. Our model performed equally well on data collected in controlled lab environment as well as 'in the wild' across different gender and age groups. Using this tool, we can collect data from almost anyone anywhere with a video/audio enabled device, contributing to equity and access in neurological care.",
+    "url": "https://arxiv.org/abs/2009.01231v4",
+    "pdf_url": "https://arxiv.org/pdf/2009.01231v4",
+    "filename": "arxiv_2009_01231v4.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2005.14647v2",
+    "title": "Assessment of Parkinson's Disease Medication State through Automatic Speech Analysis",
+    "year": 2020,
+    "authors": [
+      "Anna Pompili",
+      "Rubén Solera-Ureña",
+      "Alberto Abad",
+      "Rita Cardoso",
+      "Isabel Guimarães",
+      "Margherita Fabbri",
+      "Isabel P. Martins",
+      "Joaquim Ferreira"
+    ],
+    "abstract": "Parkinson's disease (PD) is a progressive degenerative disorder of the central nervous system characterized by motor and non-motor symptoms. As the disease progresses, patients alternate periods in which motor symptoms are mitigated due to medication intake (ON state) and periods with motor complications (OFF state). The time that patients spend in the OFF condition is currently the main parameter employed to assess pharmacological interventions and to evaluate the efficacy of different active principles. In this work, we present a system that combines automatic speech processing and deep learning techniques to classify the medication state of PD patients by leveraging personal speech-based bio-markers. We devise a speaker-dependent approach and investigate the relevance of different acoustic-prosodic feature sets. Results show an accuracy of 90.54% in a test task with mixed speech and an accuracy of 95.27% in a semi-spontaneous speech task. Overall, the experimental assessment shows the potentials of this approach towards the development of reliable, remote daily monitoring and scheduling of medication intake of PD patients.",
+    "url": "https://arxiv.org/abs/2005.14647v2",
+    "pdf_url": "https://arxiv.org/pdf/2005.14647v2",
+    "filename": "arxiv_2005_14647v2.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2609.09499v1",
+    "title": "Language Orthogonalization of Self-Supervised Speech Representations for Cross-lingual Parkinson's Detection",
+    "year": 2026,
+    "authors": [
+      "Minu Kim",
+      "Eunjung Yeo",
+      "Kwanghee Choi",
+      "June-Woo Kim"
+    ],
+    "abstract": "Self-supervised speech models (S3Ms) provide powerful representations for Parkinson's disease (PD) detection, making cross-lingual transfer attractive for languages lacking labeled patient speech. However, these representations also encode language identity, which can confound this transfer: without target-language PD speech, classifiers may separate languages rather than pathology, yielding high specificity but low sensitivity on target patients. We propose \\emph{language orthogonalization}, a closed-form ridge residualization of S3M features against external VoxLingua107 language embeddings, fitted using only healthy-control (HC) speech. By removing language-predictable components while retaining pathology-related variation, it produces a less language-dependent geometry in which HC representations concentrate while PD representations disperse. Across five S3M backbones, three speech tasks, and three target languages, our method consistently improves cross-lingual PD-detection performance while correcting the high-specificity/low-sensitivity failure.",
+    "url": "https://arxiv.org/abs/2609.09499v1",
+    "pdf_url": "https://arxiv.org/pdf/2609.09499v1",
+    "filename": "arxiv_2609_09499v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2504.17739v1",
+    "title": "Interpretable Early Detection of Parkinson's Disease through Speech Analysis",
+    "year": 2025,
+    "authors": [
+      "Lorenzo Simone",
+      "Mauro Giuseppe Camporeale",
+      "Vito Marco Rubino",
+      "Vincenzo Gervasi",
+      "Giovanni Dimauro"
+    ],
+    "abstract": "Parkinson's disease is a progressive neurodegenerative disorder affecting motor and non-motor functions, with speech impairments among its earliest symptoms. Speech impairments offer a valuable diagnostic opportunity, with machine learning advances providing promising tools for timely detection. In this research, we propose a deep learning approach for early Parkinson's disease detection from speech recordings, which also highlights the vocal segments driving predictions to enhance interpretability. This approach seeks to associate predictive speech patterns with articulatory features, providing a basis for interpreting underlying neuromuscular impairments. We evaluated our approach using the Italian Parkinson's Voice and Speech Database, containing 831 audio recordings from 65 participants, including both healthy individuals and patients. Our approach showed competitive classification performance compared to state-of-the-art methods, while providing enhanced interpretability by identifying key speech features influencing predictions.",
+    "url": "https://arxiv.org/abs/2504.17739v1",
+    "pdf_url": "https://arxiv.org/pdf/2504.17739v1",
+    "filename": "arxiv_2504_17739v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2404.05160v1",
+    "title": "Linguistic Changes in Spontaneous Speech for Detecting Parkinsons Disease Using Large Language Models",
+    "year": 2024,
+    "authors": [
+      "Jonathan Crawford"
+    ],
+    "abstract": "Parkinsons disease is the second most prevalent neurodegenerative disorder with over ten million active cases worldwide and one million new diagnoses per year. Detecting and subsequently diagnosing the disease is challenging because of symptom heterogeneity with respect to complexity, as well as the type and timing of phenotypic manifestations. Typically, language impairment can present in the prodromal phase and precede motor symptoms suggesting that a linguistic-based approach could serve as a diagnostic method for incipient Parkinsons disease. Additionally, improved linguistic models may enhance other approaches through ensemble techniques. The field of large language models is advancing rapidly, presenting the opportunity to explore the use of these new models for detecting Parkinsons disease and to improve on current linguistic approaches with high-dimensional representations of linguistics. We evaluate the application of state-of-the-art large language models to detect Parkinsons disease automatically from spontaneous speech with up to 73% accuracy.",
+    "url": "https://arxiv.org/abs/2404.05160v1",
+    "pdf_url": "https://arxiv.org/pdf/2404.05160v1",
+    "filename": "arxiv_2404_05160v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2606.19125v2",
+    "title": "Continuous-Speech Parkinson's Disease Detection Using Acoustic and Inharmonicity Features",
+    "year": 2026,
+    "authors": [
+      "Rujia Li",
+      "Niloofar Momeni",
+      "Susanna Whitling",
+      "Andreas Jakobsson"
+    ],
+    "abstract": "Notable efforts have been made to identify Parkinson's disease (PD) from vocal data, primarily using sustained vowel phonations. In this work, we extend on these efforts introducing a PD identification approach for continuous speech, enabling a practical background monitoring of voice data to detect vocal changes indicative of PD. Using two distinct data sets, we compare the best sustained vowel model with that of the proposed continuous speech model, clearly illustrating the preferential performance of the latter. We examine approaches for speaker level evaluation and data leakage preventions, as well as how vowel information may be reliably extracted from continuous speech. The proposed method framework exploits both traditional acoustic representations and a promising novel inharmonicity based framework, showing how the latter provides complementary information improving the performance for one of the data sets; however, for the other data set, this information did not significantly improve (nor reduce) the performance, suggesting that further studies are required before being able to draw firm conclusions in its use. Overall, the work clearly illustrates the benefit of forming PD classification using continuous speech compared to using sustained vowel sounds.",
+    "url": "https://arxiv.org/abs/2606.19125v2",
+    "pdf_url": "https://arxiv.org/pdf/2606.19125v2",
+    "filename": "arxiv_2606_19125v2.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2510.07299v1",
+    "title": "Comparison of Speech Tasks in Human Expert and Machine Detection of Parkinson's Disease",
+    "year": 2025,
+    "authors": [
+      "Peter Plantinga",
+      "Roozbeh Sattari",
+      "Karine Marcotte",
+      "Carla Di Gironimo",
+      "Madeleine Sharp",
+      "Liziane Bouvier",
+      "Maiya Geddes",
+      "Ingrid Verduyckt",
+      "Étienne de Villers-Sidani",
+      "Mirco Ravanelli",
+      "Denise Klein"
+    ],
+    "abstract": "The speech of people with Parkinson's Disease (PD) has been shown to hold important clues about the presence and progression of the disease. We investigate the factors based on which humans experts make judgments of the presence of disease in speech samples over five different speech tasks: phonations, sentence repetition, reading, recall, and picture description. We make comparisons by conducting listening tests to determine clinicians accuracy at recognizing signs of PD from audio alone, and we conduct experiments with a machine learning system for detection based on Whisper. Across tasks, Whisper performs on par or better than human experts when only audio is available, especially on challenging but important subgroups of the data: younger patients, mild cases, and female patients. Whisper's ability to recognize acoustic cues in difficult cases complements the multimodal and contextual strengths of human experts.",
+    "url": "https://arxiv.org/abs/2510.07299v1",
+    "pdf_url": "https://arxiv.org/pdf/2510.07299v1",
+    "filename": "arxiv_2510_07299v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2506.02078v1",
+    "title": "Evaluating the Effectiveness of Pre-Trained Audio Embeddings for Classification of Parkinson's Disease Speech Data",
+    "year": 2025,
+    "authors": [
+      "Emmy Postma",
+      "Cristian Tejedor-Garcia"
+    ],
+    "abstract": "Speech impairments are prevalent biomarkers for Parkinson's Disease (PD), motivating the development of diagnostic techniques using speech data for clinical applications. Although deep acoustic features have shown promise for PD classification, their effectiveness often varies due to individual speaker differences, a factor that has not been thoroughly explored in the existing literature. This study investigates the effectiveness of three pre-trained audio embeddings (OpenL3, VGGish and Wav2Vec2.0 models) for PD classification. Using the NeuroVoz dataset, OpenL3 outperforms others in diadochokinesis (DDK) and listen and repeat (LR) tasks, capturing critical acoustic features for PD detection. Only Wav2Vec2.0 shows significant gender bias, achieving more favorable results for male speakers, in DDK tasks. The misclassified cases reveal challenges with atypical speech patterns, highlighting the need for improved feature extraction and model robustness in PD detection.",
+    "url": "https://arxiv.org/abs/2506.02078v1",
+    "pdf_url": "https://arxiv.org/pdf/2506.02078v1",
+    "filename": "arxiv_2506_02078v1.pdf"
+  },
+  {
+    "source": "arxiv",
+    "external_id": "2505.18722v1",
+    "title": "Evaluating the Usefulness of Non-Diagnostic Speech Data for Developing Parkinson's Disease Classifiers",
+    "year": 2025,
+    "authors": [
+      "Terry Yi Zhong",
+      "Esther Janse",
+      "Cristian Tejedor-Garcia",
+      "Louis ten Bosch",
+      "Martha Larson"
+    ],
+    "abstract": "Speech-based Parkinson's disease (PD) detection has gained attention for its automated, cost-effective, and non-intrusive nature. As research studies usually rely on data from diagnostic-oriented speech tasks, this work explores the feasibility of diagnosing PD on the basis of speech data not originally intended for diagnostic purposes, using the Turn-Taking (TT) dataset. Our findings indicate that TT can be as useful as diagnostic-oriented PD datasets like PC-GITA. We also investigate which specific dataset characteristics impact PD classification performance. The results show that concatenating audio recordings and balancing participants' gender and status distributions can be beneficial. Cross-dataset evaluation reveals that models trained on PC-GITA generalize poorly to TT, whereas models trained on TT perform better on PC-GITA. Furthermore, we provide insights into the high variability across folds, which is mainly due to large differences in individual speaker performance.",
+    "url": "https://arxiv.org/abs/2505.18722v1",
+    "pdf_url": "https://arxiv.org/pdf/2505.18722v1",
+    "filename": "arxiv_2505_18722v1.pdf"
+  }
+]
