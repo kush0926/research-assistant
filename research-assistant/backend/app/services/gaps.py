@@ -24,30 +24,85 @@ from .llm import llm
 
 MATRIX_EXCLUDED_CATEGORIES = {"feature", "technique"}  # inputs/tricks are not "the method" axis
 COMPONENTS = ["novelty", "sparsity", "importance", "feasibility", "temporal", "evidence", "opportunity", "contradiction"]
+SCORING_VERSION = "2"
+
+
+def _normalize_weights(weights=None) -> dict[str, float]:
+    raw = settings.GAP_WEIGHTS if weights is None else weights
+    if set(raw) - set(COMPONENTS):
+        raise ValueError("Unknown gap scoring component.")
+    try:
+        values = {k: float(raw.get(k, 0.0)) for k in COMPONENTS}
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Gap weights must be finite, non-negative numbers.") from exc
+    if any(not math.isfinite(v) or v < 0 for v in values.values()):
+        raise ValueError("Gap weights must be finite, non-negative numbers.")
+    # Scale before summing so even very large finite custom weights remain usable.
+    largest = max(values.values())
+    if largest <= 0:
+        raise ValueError("At least one gap scoring weight must be greater than zero.")
+    scaled = {k: v / largest for k, v in values.items()}
+    total = sum(scaled.values())
+    return {k: v / total for k, v in scaled.items()}
+
+
+def _bounded(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _semantic_novelty(vector, occupied_vectors) -> float:
+    if not len(occupied_vectors):
+        return 1.0
+    return 1.0 - _bounded(float((occupied_vectors @ vector).max()))
+
+
+def _sparsity_score(cell_count, dataset_support, method_support, problem_support,
+                    global_method_support, corpus_size) -> float:
+    # Expected overlap under independence within the problem, smoothed by overall
+    # method prevalence so transfers from another problem remain possible. An empty
+    # cell with one weak neighbour must not score like a hole in a mature literature.
+    expected = dataset_support * (0.75 * method_support / max(problem_support, 1)
+                                  + 0.25 * global_method_support / max(corpus_size, 1))
+    return _bounded((expected - cell_count) / (expected + 1.0))
+
+
+def _evidence_score(paper_ids) -> float:
+    count = len(set(paper_ids))
+    return count / (count + 4.0)
+
+
+def _temporal_score(paper_ids, years, latest_year) -> float:
+    ids = set(paper_ids)
+    if not ids or latest_year is None:
+        return 0.5
+    # Three-year half-life relative to the latest paper in the selected corpus.
+    # Missing dates contribute a neutral prior rather than being treated as recent.
+    return sum(2.0 ** (-max(0, latest_year - years[i]) / 3.0) if years.get(i) else 0.5
+               for i in ids) / len(ids)
+
+
+def _conflict_strength(conflicts) -> float:
+    strengths = []
+    tolerance = max(settings.CONTRADICTION_TOLERANCE, 1.0)
+    for conflict in conflicts:
+        count = len({p["paper_id"] for p in conflict.get("papers", [])})
+        if count < 2:
+            continue
+        delta = max(0.0, float(conflict.get("delta", 0)))
+        strengths.append((delta / (delta + tolerance)) * count / (count + 1.0))
+    return max(strengths, default=0.0)
+
+
+def _candidate_order(candidate):
+    # Real ties remain ties; canonical labels make their ordering repeatable.
+    return (-candidate["score"], candidate["type"], candidate.get("problem") or "",
+            candidate.get("dataset") or "", candidate.get("method") or "",
+            candidate.get("rep_text") or "", candidate.get("contradiction", {}).get("metric", ""))
 
 
 def _thresholds():
     bge = get_embedder().backend == "bge"
     return {"cluster": 0.72 if bge else 0.42, "semantic_match": 0.62 if bge else 0.30}
-
-
-def _cluster_papers(vecs: np.ndarray) -> list[int]:
-    n = len(vecs)
-    if n < 6:
-        return [0] * n
-    try:
-        from sklearn.cluster import HDBSCAN
-        lab = HDBSCAN(min_cluster_size=2).fit_predict(vecs)
-        nxt = int(lab.max()) + 1 if (lab >= 0).any() else 0
-        return [int(l) if l >= 0 else nxt + i for i, l in enumerate(lab)] if (lab >= 0).any() else _kmeans(vecs)
-    except Exception:
-        return _kmeans(vecs)
-
-
-def _kmeans(vecs):
-    from sklearn.cluster import KMeans
-    k = max(2, min(4, len(vecs) // 3))
-    return [int(x) for x in KMeans(n_clusters=k, n_init=5, random_state=0).fit_predict(vecs)]
 
 
 def _greedy_clusters(vecs: np.ndarray, thr: float) -> list[list[int]]:
@@ -94,31 +149,29 @@ def select_corpus(db: Session, user_id: int, paper_ids=None, topic=None) -> list
     q = db.query(Paper).filter(Paper.upload_user_id == user_id, Paper.status == "ready")
     if paper_ids:
         q = q.filter(Paper.id.in_(paper_ids))
-    papers = q.all()
+    papers = q.order_by(Paper.id).all()
     if topic and len(papers) > 3:
         emb = get_embedder()
         vs = emb.encode([f"{p.title}. {p.abstract or ''}" for p in papers])
         qv = emb.encode([topic], is_query=True)[0]
-        order = np.argsort(-(vs @ qv))
+        order = np.argsort(-(vs @ qv), kind="stable")
         keep = max(3, math.ceil(0.75 * len(papers)))
         papers = [papers[i] for i in order[:keep]]
     return papers
 
 
 def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=None, max_gaps: int = 15) -> dict:
+    W = _normalize_weights(weights)
     papers = select_corpus(db, user_id, paper_ids, topic)
     if len(papers) < 3:
         return {"error": "Need at least 3 processed papers for gap detection.", "gaps": [], "corpus_size": len(papers)}
-    W = {k: float((weights or settings.GAP_WEIGHTS).get(k, 0.0)) for k in COMPONENTS}
-    tot = sum(W.values()) or 1.0
-    W = {k: v / tot for k, v in W.items()}
     emb, th = get_embedder(), _thresholds()
     pid_list = [p.id for p in papers]
     by_id = {p.id: p for p in papers}
 
-    # ---- 1-3. clustering + entity tables ----
+    # ---- 1-3. paper representations + entity tables ----
     vecs = emb.encode([f"{p.title}. {p.abstract or ''}" for p in papers])
-    cluster_of = dict(zip(pid_list, _cluster_papers(vecs)))
+    paper_vecs = dict(zip(pid_list, vecs))
     names = lambda model, link, col: {  # noqa
         r[0]: r[1] for r in db.query(model.id, model.name).all()}
     prob_names, ds_names, m_names = (names(Problem, 0, 0), names(Dataset, 0, 0), names(Method, 0, 0))
@@ -137,7 +190,7 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
     P, D, M = Counter(), Counter(), Counter()
     tri_papers, pd_papers, pm_papers = defaultdict(list), defaultdict(list), defaultdict(list)
     for pid in pid_list:
-        ps, ds, ms = P_of[pid], D_of[pid], M_of[pid]
+        ps, ds, ms = sorted(P_of[pid]), sorted(D_of[pid]), sorted(M_of[pid])
         for p in ps: P[p] += 1
         for d in ds: D[d] += 1
         for m in ms: M[m] += 1
@@ -151,29 +204,60 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
 
     # ---- limitation / future-work mining (needed for evidence + cluster candidates) ----
     ev_items = []
+    seen_evidence = set()
     for pid in pid_list:
         f = get_fields(db, pid)
         for typ in ("limitations", "future_work"):
             for it in f.get(typ, {}).get("value") or []:
+                identity = (pid, " ".join(it["text"].lower().split()))
+                if identity in seen_evidence:
+                    continue
+                seen_evidence.add(identity)
                 ev_items.append({"paper_id": pid, "type": "limitation" if typ == "limitations" else "future_work",
                                  "text": it["text"], "chunk_id": it.get("chunk_id"),
                                  "m": set(find_entities(it["text"], "methods")), "d": set(find_entities(it["text"], "datasets")),
                                  "p": set(find_entities(it["text"], "problems"))})
+    ev_items.sort(key=lambda e: (e["text"].casefold(), e["paper_id"], e["type"]))
     ev_vecs = emb.encode([e["text"] for e in ev_items]) if ev_items else np.zeros((0, emb.dim))
     contradictions = find_contradictions(db, pid_list)
 
     # ---- 6-7. candidate generation: well-populated neighbours, empty (or abandoned) cell ----
     well_cells = [t for t, c in T.items() if c >= min_nb]
     well_vecs = emb.encode([" | ".join(t) for t in well_cells]) if well_cells else np.zeros((0, emb.dim))
-    max_cit = max([p.citation_count or 0 for p in papers] + [1])
-    prob_stats = {}
-    for p in P:
-        ps = [by_id[i] for i in pid_list if p in P_of[i]]
-        recent = [x for x in ps if x.year and max_year and x.year >= max_year - 2]
-        prob_stats[p] = {"n": len(ps), "cit": sum((x.citation_count or 0) for x in ps),
-                         "recent": len(recent), "has_years": any(x.year for x in ps)}
-    max_pn = max([s["n"] for s in prob_stats.values()] + [1])
-    max_pc = max([s["cit"] for s in prob_stats.values()] + [1])
+    log_citations = {p.id: math.log1p(max(0, p.citation_count or 0)) for p in papers}
+    total_citations = sum(log_citations.values())
+
+    def importance_of(ids):
+        ids = set(ids)
+        coverage = math.log1p(len(ids)) / math.log1p(len(papers))
+        if not total_citations:
+            return coverage
+        # Log scaling limits the influence of a single highly cited paper. Zero
+        # citation metadata throughout the corpus falls back to observed coverage.
+        return 0.7 * coverage + 0.3 * sum(log_citations[i] for i in ids) / total_citations
+
+    def feasibility_of(items):
+        datasets = {d for item in items for d in item["d"]}
+        methods = {m for item in items for m in item["m"]}
+        availability = ([is_public("datasets", d) for d in sorted(datasets)]
+                        + [is_public("methods", m) for m in sorted(methods)])
+        return sum(availability) / len(availability) if availability else 0.5
+
+    def score_of(components):
+        contributions = {k: W[k] * components[k] for k in COMPONENTS}
+        weighted_sum = sum(contributions.values())
+        penalty = (_bounded(settings.SPARSITY_ONLY_PENALTY)
+                   if components["evidence"] == 0 and components["contradiction"] == 0 else 1.0)
+        return weighted_sum * penalty, {"weighted_sum": weighted_sum, "penalty": penalty,
+                                        "contributions": contributions}
+
+    def add_candidate(candidate, support_ids, evidence_ids):
+        candidate["components"] = {k: _bounded(candidate["components"][k]) for k in COMPONENTS}
+        candidate["score"], candidate["score_breakdown"] = score_of(candidate["components"])
+        candidate["support"] = {"paper_count": len(set(support_ids)),
+                                "evidence_paper_count": len(set(evidence_ids)),
+                                "dated_paper_count": sum(bool(years.get(i)) for i in set(support_ids))}
+        cands.append(candidate)
 
     # Embed every candidate cell in ONE batch (per-candidate encode calls were the slow path with BGE).
     pending = [(p, d, m) for p, d in PD if PD[(p, d)] >= min_nb for m in M if M[m] >= min_nb]
@@ -181,15 +265,22 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
 
     def comps(p, d, m, cell, nrow, ncol):
         v = cand_vec[(p, d, m)]
-        novelty = 1.0 - float((well_vecs @ v).max()) if len(well_vecs) else 1.0
-        sparsity = max(0.0, 1.0 - cell / (((nrow + ncol) / 2) or 1))
-        st = prob_stats[p]
-        importance = 0.5 * st["n"] / max_pn + 0.5 * (st["cit"] / max_pc if max_pc > 1 or st["cit"] else st["n"] / max_pn)
-        feasibility = (is_public("datasets", d) + is_public("methods", m)) / 2
-        temporal = 0.5 if not st["has_years"] else 0.5 * (1.0 if st["recent"] else 0.0) + 0.5 * (st["recent"] / st["n"])
-        pd_clusters = {cluster_of[i] for i in pd_papers.get((p, d), [])}
-        elsewhere = [i for i in pid_list if m in M_of[i] and cluster_of[i] not in pd_clusters]
-        opportunity = min(1.0, len(elsewhere) / 3)
+        pair_novelty = 1.0 - DM[(d, m)] / max(1, min(D[d], M[m]))
+        novelty = 0.5 * _semantic_novelty(v, well_vecs) + 0.5 * pair_novelty
+        sparsity = _sparsity_score(cell, nrow, PM[(p, m)], P[p], ncol, len(papers))
+        row_ids = set(pd_papers[(p, d)])
+        local_method_ids = set(pm_papers.get((p, m), []))
+        support_ids = row_ids | local_method_ids
+        importance = importance_of(support_ids)
+        availability = (is_public("datasets", d) + is_public("methods", m)) / 2
+        feasibility = 0.75 * availability + 0.25 * len(local_method_ids) / (len(local_method_ids) + 1.0)
+        method_ids = [i for i in pid_list if m in M_of[i]]
+        temporal = (_temporal_score(row_ids, years, max_year)
+                    + _temporal_score(method_ids, years, max_year)) / 2
+        elsewhere = [i for i in method_ids if i not in row_ids]
+        relevance = [_bounded(float(paper_vecs[i] @ v)) for i in elsewhere]
+        effective_support = sum(0.5 + 0.5 * similarity for similarity in relevance)
+        opportunity = effective_support / (effective_support + 2.0)
         # Match explicit entities or semantic relevance within the statement's problem scope.
         sem = (ev_vecs @ v) if len(ev_vecs) else np.zeros(0)
         related_items = [e for e, similarity in zip(ev_items, sem)
@@ -200,19 +291,13 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
         hit_items = [e for e in related_items if d in e["d"] and m in e["m"]]
         related_context = [e for e in related_items if e not in hit_items]
         indep = {e["paper_id"] for e in hit_items}
-        evidence = min(len(indep), 5) / 5
+        evidence = _evidence_score(indep)
         # overlap must be on the dataset or method — problem-level overlap is too coarse in a single-topic corpus
         related_contradictions = _related_contradictions(p, d, m, contradictions, P_of)
-        contradiction = 1.0 if related_contradictions else 0.0
+        contradiction = _conflict_strength(related_contradictions)
         return ({"novelty": novelty, "sparsity": sparsity, "importance": importance, "feasibility": feasibility,
                  "temporal": temporal, "evidence": evidence, "opportunity": opportunity, "contradiction": contradiction},
-                hit_items, elsewhere, related_contradictions, related_context)
-
-    def score_of(c, tier_evidence):
-        s = sum(W[k] * c[k] for k in COMPONENTS)
-        if c["evidence"] == 0 and c["contradiction"] == 0:
-            s *= settings.SPARSITY_ONLY_PENALTY
-        return round(float(s), 4)
+                hit_items, elsewhere, related_contradictions, related_context, support_ids)
 
     cands = []
     for p, d in PD:
@@ -227,44 +312,59 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
             if cell > 0 and not abandoned:
                 continue
             nrow, ncol = PD[(p, d)], M[m]
-            c, hits, elsewhere, related_contradictions, related_context = comps(p, d, m, cell, nrow, ncol)
-            cands.append({"type": "combination", "problem": p, "dataset": d, "method": m, "cell_count": cell,
+            c, hits, elsewhere, related_contradictions, related_context, support_ids = comps(p, d, m, cell, nrow, ncol)
+            conflict_ids = {pair["paper_id"] for ct in related_contradictions for pair in ct["papers"]}
+            evidence_ids = {h["paper_id"] for h in hits} | conflict_ids
+            add_candidate({"type": "combination", "problem": p, "dataset": d, "method": m, "cell_count": cell,
                           "neighbor_row": nrow, "neighbor_col": ncol, "components": c, "hits": hits,
                           "related_contradictions": related_contradictions,
                           "related_context": related_context,
                           "kind": "explored_early_then_abandoned" if abandoned else "never_explored",
-                          "score": score_of(c, bool(hits)), "elsewhere": elsewhere})
-    cands.sort(key=lambda x: -x["score"])
+                          "elsewhere": elsewhere}, support_ids | evidence_ids | set(elsewhere), evidence_ids)
+    cands.sort(key=_candidate_order)
     cands = cands[: max_gaps * 2]
 
     # ---- evidence-cluster candidates (textual signal on its own) ----
-    for cl in sorted(_greedy_clusters(ev_vecs, th["cluster"]) if len(ev_items) else [], key=len, reverse=True)[:6]:
+    for cl in _greedy_clusters(ev_vecs, th["cluster"]) if len(ev_items) else []:
         indep = {ev_items[i]["paper_id"] for i in cl}
         if len(indep) < 2:
             continue
-        rep = max(cl, key=lambda i: float(ev_vecs[i] @ ev_vecs[cl].mean(axis=0)))
+        centroid = ev_vecs[cl].mean(axis=0)
+        rep = min(cl, key=lambda i: (-float(ev_vecs[i] @ centroid), ev_items[i]["text"].casefold(),
+                                     ev_items[i]["paper_id"]))
         probs = Counter(p for i in cl for p in P_of[ev_items[i]["paper_id"]])
-        p0 = probs.most_common(1)[0][0] if probs else "corpus"
+        p0 = min(probs, key=lambda p: (-probs[p], p)) if probs else "corpus"
         v = ev_vecs[rep]
-        novelty = 1.0 - float((well_vecs @ v).max()) if len(well_vecs) else 1.0
-        c = {"novelty": novelty, "sparsity": 0.0, "importance": prob_stats.get(p0, {"n": 1})["n"] / max_pn,
-             "feasibility": 0.5, "temporal": 0.5, "evidence": min(len(indep), 5) / 5, "opportunity": 0.0,
+        hits = [ev_items[i] for i in cl]
+        c = {"novelty": _semantic_novelty(v, well_vecs), "sparsity": 0.0, "importance": importance_of(indep),
+             "feasibility": feasibility_of(hits), "temporal": _temporal_score(indep, years, max_year),
+             "evidence": _evidence_score(indep), "opportunity": 0.0,
              "contradiction": 0.0}
-        cands.append({"type": "evidence_cluster", "problem": p0, "dataset": None, "method": None, "cell_count": None,
+        add_candidate({"type": "evidence_cluster", "problem": p0, "dataset": None, "method": None, "cell_count": None,
                       "neighbor_row": None, "neighbor_col": None, "components": c,
-                      "hits": [ev_items[i] for i in cl], "kind": "repeated_future_work",
-                      "score": score_of(c, True), "rep_text": ev_items[rep]["text"], "elsewhere": []})
+                      "hits": hits, "kind": "repeated_future_work",
+                      "rep_text": ev_items[rep]["text"], "elsewhere": []}, indep, indep)
 
     # ---- contradiction candidates ----
-    for ct in contradictions[:4]:
+    conflict_problems = []
+    for ct in contradictions:
         pset = {p for x in ct["papers"] for p in P_of[x["paper_id"]]}
-        c = {"novelty": 0.5, "sparsity": 0.0, "importance": 0.5, "feasibility": 1.0, "temporal": 0.5,
-             "evidence": 0.0, "opportunity": 0.0, "contradiction": 1.0}
-        cands.append({"type": "contradiction", "problem": sorted(pset)[0] if pset else None, "dataset": ct["dataset"],
+        conflict_problems.append(min(pset) if pset else None)
+    conflict_vecs = emb.encode([f"{p or 'corpus'} | {ct['dataset']} | {ct['method']}"
+                               for p, ct in zip(conflict_problems, contradictions)]) if contradictions else []
+    for p0, ct, v in zip(conflict_problems, contradictions, conflict_vecs):
+        indep = {x["paper_id"] for x in ct["papers"]}
+        c = {"novelty": _semantic_novelty(v, well_vecs), "sparsity": 0.0,
+             "importance": importance_of(indep),
+             "feasibility": (is_public("datasets", ct["dataset"]) + is_public("methods", ct["method"])) / 2,
+             "temporal": _temporal_score(indep, years, max_year),
+             "evidence": _evidence_score(indep), "opportunity": 0.0,
+             "contradiction": _conflict_strength([ct])}
+        add_candidate({"type": "contradiction", "problem": p0, "dataset": ct["dataset"],
                       "method": ct["method"], "cell_count": None, "neighbor_row": None, "neighbor_col": None,
                       "components": c, "hits": [], "kind": "conflicting_results", "contradiction": ct,
-                      "score": score_of(c, False), "elsewhere": []})
-    cands.sort(key=lambda x: -x["score"])
+                      "elsewhere": []}, indep, indep)
+    cands.sort(key=_candidate_order)
     cands = cands[:max_gaps]
 
     # ---- 11-12. evidence verification + output ----
@@ -314,10 +414,15 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
             trend = None
         has_text = c["components"]["evidence"] > 0 or c["components"]["contradiction"] > 0
         tier = "evidence_backed" if has_text else "under_explored"
-        conf = "Low" if tier == "under_explored" else ("High" if c["score"] >= 0.7 else "Medium" if c["score"] >= 0.45 else "Low")
+        source_count = c["support"]["evidence_paper_count"]
+        conf = "Low" if tier == "under_explored" or source_count < 2 else "High" if source_count >= 3 else "Medium"
         gaps.append({"type": c["type"], "tier": tier, "confidence": conf, "description": desc,
                      "problem": c["problem"], "dataset": c["dataset"], "method": c["method"],
-                     "score": c["score"], "components": {k: round(v, 3) for k, v in c["components"].items()},
+                     "score": round(c["score"], 4), "components": {k: round(v, 4) for k, v in c["components"].items()},
+                     "score_breakdown": {"weighted_sum": round(c["score_breakdown"]["weighted_sum"], 6),
+                                         "penalty": c["score_breakdown"]["penalty"],
+                                         "contributions": {k: round(v, 6) for k, v in c["score_breakdown"]["contributions"].items()}},
+                     "support": c["support"], "scoring_version": SCORING_VERSION,
                      "weights": W, "cell_count": c["cell_count"], "trend": trend, "evidence": ev})
 
     if llm.available:  # LLM only narrates "why it matters", grounded on the evidence — never invents the gap
@@ -334,16 +439,24 @@ def detect_gaps(db: Session, user_id: int, paper_ids=None, topic=None, weights=N
     run_id = uuid.uuid4().hex[:12]
     _persist(db, user_id, run_id, gaps)
     return {"run_id": run_id, "corpus_size": len(papers), "scope": topic or "selected/all processed papers",
-            "gaps": gaps, "matrix": _matrix_view(PD, PM, D, M, P), "trends": _trend_view(papers, M_of, years),
-            "contradictions": contradictions, "weights": W,
+            "gaps": gaps, "matrix": _matrix_view(PD, PM, D, M, P, T), "trends": _trend_view(papers, M_of, years),
+            "contradictions": contradictions, "weights": W, "scoring_version": SCORING_VERSION,
             "disclaimer": "Candidate gaps, not certainties: scored from this corpus only; verify against the evidence."}
 
 
-def _matrix_view(PD, PM, D, M, P):
+def _matrix_view(PD, PM, D, M, P, T):
     probs = [p for p, _ in P.most_common(6)]
     ds = [d for d, _ in D.most_common(8)]
     ms = [m for m, _ in M.most_common(8)]
-    return {"problem_dataset": {"rows": probs, "cols": ds, "cells": [[PD.get((p, d), 0) for d in ds] for p in probs]},
+    # Keep the full axes for the detector's three-way matrix. Sparse counts avoid a
+    # dense problem x dataset x method payload; combinations absent here have count 0.
+    return {"problem_dataset_method": {
+                "problems": [p for p, _ in P.most_common()],
+                "datasets": [d for d, _ in D.most_common()],
+                "methods": [m for m, _ in M.most_common()],
+                "counts": [{"problem": p, "dataset": d, "method": m, "count": count}
+                           for (p, d, m), count in T.items() if count > 0]},
+            "problem_dataset": {"rows": probs, "cols": ds, "cells": [[PD.get((p, d), 0) for d in ds] for p in probs]},
             "problem_method": {"rows": probs, "cols": ms, "cells": [[PM.get((p, m), 0) for m in ms] for p in probs]}}
 
 
@@ -362,7 +475,9 @@ def _persist(db, user_id, run_id, gaps):
                           problem_id=pid.get(g["problem"]), dataset_id=did.get(g["dataset"]), method_id=mid.get(g["method"]),
                           gap_score=g["score"], novelty=g["components"]["novelty"], sparsity=g["components"]["sparsity"],
                           evidence_score=g["components"]["evidence"],
-                          components=json.dumps({"components": g["components"], "weights": g["weights"]}))
+                          components=json.dumps({"components": g["components"], "weights": g["weights"],
+                                                 "score_breakdown": g["score_breakdown"], "support": g["support"],
+                                                 "scoring_version": SCORING_VERSION}))
         db.add(row); db.flush()
         g["id"] = row.id
         for e in g["evidence"]:

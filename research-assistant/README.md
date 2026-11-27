@@ -52,6 +52,23 @@ Weights are hand-set, equal by default, normalised, and editable in the UI; they
 contradiction is kept but multiplied by `SPARSITY_ONLY_PENALTY` (0.75) and labelled "under-explored" (lower confidence). Contradictions only count
 when dataset and method match, with compatible problem labels. Every gap links to the exact source sentences.
 
+Scoring version 2 uses candidate-specific support rather than assigning every empty cell full sparsity points:
+
+- **Sparsity:** expected overlap is dataset support × (75% method prevalence within the problem + 25% overall method prevalence).
+  The component is `max(0, (expected − observed) / (expected + 1))`, so weakly supported empty combinations receive fewer points.
+- **Novelty:** combination candidates blend bounded semantic distance from occupied cells with dataset–method pair novelty.
+- **Importance and feasibility:** relevant-paper coverage and log-scaled citations measure importance; availability and prior method use
+  on the problem measure feasibility. Missing citation metadata falls back to coverage; unknown availability stays neutral.
+- **Temporal and opportunity:** dates use a three-year half-life relative to the latest selected paper, with missing dates neutral.
+  Method use outside the candidate's problem/dataset row contributes transfer opportunity, discounted by semantic relevance.
+- **Evidence and conflicts:** evidence is `n / (n + 4)` for independent supporting papers, with duplicate statements removed.
+  Conflict strength increases with the reported difference and independent source count. Textual themes and conflicts use their own source metadata.
+
+All components and scores stay within 0–1. Negative, nonfinite, unknown, and all-zero custom weights are rejected. Ranking uses full precision
+with stable ordering for true ties; the UI displays four decimals and each weighted contribution. Confidence reflects independent direct sources
+(one: Low, two: Medium, three or more: High), while structural-only candidates remain Low; it is not a calibrated probability of a true research gap.
+Stored runs retain their original scores and formula metadata. Re-run gap detection to apply the updated logic.
+
 ## Verification status — 2026-10-14
 
 The user requested automated LLM verification instead of manual review. Groq GPT-OSS 20B generates outputs and GPT-OSS 120B checks source support. Assessments are labeled automated; they are not human gold or independently measured research accuracy.

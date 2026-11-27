@@ -25,6 +25,8 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")]
     MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "25"))
     MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "80"))
+    # Keep PDF parsing bounded so a malformed or pathological document cannot
+    # hold an ingestion worker for several minutes.
     PARSE_TIMEOUT_S = int(os.getenv("PARSE_TIMEOUT_S", "60"))
     PARSE_MEM_MB = int(os.getenv("PARSE_MEM_MB", "2048"))
     RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "30"))

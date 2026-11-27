@@ -48,10 +48,13 @@ def parse_pdf(path: str, max_pages: int = 80) -> dict:
     n_pages = min(doc.page_count, max_pages)
     pages = []
     font_sizes = []
+    # The default DICT flags include image bytes in every image block. We only
+    # consume text blocks below, so don't extract image payloads at all.
+    text_flags = pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_PRESERVE_IMAGES
     for pno in range(n_pages):
         page = doc[pno]
         lines = []
-        for b in page.get_text("dict")["blocks"]:
+        for b in page.get_text("dict", flags=text_flags)["blocks"]:
             if b.get("type") != 0:
                 continue
             for ln in b["lines"]:
@@ -72,6 +75,10 @@ def main(argv):
     """CLI: python -m app.services.pdf_worker <pdf> <max_pages> <mem_mb> <cpu_s>  -> JSON on stdout."""
     import json
     path, max_pages, mem_mb, cpu_s = argv[1], int(argv[2]), int(argv[3]), int(argv[4])
+    # Import PyMuPDF before applying RLIMIT_AS. Its native module maps a large
+    # virtual address range during import, which can stall when the address-space
+    # limit is already active even though parsing a small PDF needs little RAM.
+    import pymupdf
     _limit_resources(mem_mb, cpu_s)
     try:
         sys.stdout.write(json.dumps({"ok": parse_pdf(path, max_pages)}))

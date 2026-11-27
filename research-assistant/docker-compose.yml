@@ -11,8 +11,11 @@ services:
       DATABASE_URL: postgresql://ra:ra@db:5432/ra
       DATA_DIR: /data
       GROBID_URL: ${GROBID_URL:-}
+      HF_HOME: /hf-cache
+      HF_HUB_ETAG_TIMEOUT: 3
+      HF_HUB_DOWNLOAD_TIMEOUT: 20
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
-    volumes: [appdata:/data]
+    volumes: [appdata:/data, hf-cache:/hf-cache]
     depends_on: { db: { condition: service_healthy } }
     ports: ["8000:8000"]
   frontend:
@@ -25,4 +28,4 @@ services:
     image: lfoppiano/grobid:0.8.1
     profiles: [grobid]
     ports: ["8070:8070"]
-volumes: { pgdata: {}, appdata: {} }
+volumes: { pgdata: {}, appdata: {}, hf-cache: {} }

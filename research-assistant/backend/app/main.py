@@ -1,12 +1,14 @@
 """FastAPI application — endpoints follow Part 22 of the blueprint (+ auth, library, graph, review, agent)."""
+import json
 import logging
+import math
 import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from .config import UPLOAD_DIR, settings
@@ -272,6 +274,18 @@ class GapIn(BaseModel):
     max_gaps: int = Field(12, ge=1, le=40)
     weights: dict[str, float] | None = None
 
+    @field_validator("weights")
+    @classmethod
+    def validate_weights(cls, value):
+        if value is not None:
+            if any(not math.isfinite(weight) for weight in value.values()):
+                # JSON exponents such as 1e309 can parse as infinity. Keep them out
+                # of Pydantic's echoed error input, which cannot be JSON-serialized.
+                raise HTTPException(422, detail=[{"loc": ["body", "weights"], "type": "value_error",
+                                                 "msg": "Gap weights must be finite, non-negative numbers."}])
+            gaps._normalize_weights(value)
+        return value
+
 
 @app.post("/research-gaps")
 def research_gaps(body: GapIn, user: User = Depends(rate_limit), db: Session = Depends(get_db)):
@@ -285,6 +299,7 @@ def get_gap(gap_id: int, user: User = Depends(current_user), db: Session = Depen
         raise HTTPException(404, "Gap not found")
     ev = db.query(GapEvidence).filter_by(gap_id=g.id).all()
     return {"id": g.id, "description": g.description, "score": g.gap_score, "tier": g.tier, "type": g.gap_type,
+            **json.loads(g.components or "{}"),
             "evidence": [{"type": e.evidence_type, "paper_id": e.source_paper_id, "chunk_id": e.source_chunk_id, "note": e.note} for e in ev]}
 
 
